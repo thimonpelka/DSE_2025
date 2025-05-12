@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distance-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distance-monitor
+  template:
+    metadata:
+      labels:
+        app: distance-monitor
+    spec:
+      containers:
+      - name: distance-monitor
+        image: distance-monitor:latest
+        ports:
+        - containerPort: 5000

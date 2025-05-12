@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: location-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: location-tracker
+  template:
+    metadata:
+      labels:
+        app: location-tracker
+    spec:
+      containers:
+      - name: location-tracker
+        image: location-tracker:latest
+        ports:
+        - containerPort: 5000

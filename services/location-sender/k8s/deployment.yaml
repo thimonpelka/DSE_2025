@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: location-sender
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: location-sender
+  template:
+    metadata:
+      labels:
+        app: location-sender
+    spec:
+      containers:
+      - name: location-sender
+        image: location-sender:latest
+        ports:
+        - containerPort: 5000

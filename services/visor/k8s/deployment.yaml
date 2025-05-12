@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: visor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: visor
+  template:
+    metadata:
+      labels:
+        app: visor
+    spec:
+      containers:
+      - name: visor
+        image: visor:latest
+        ports:
+        - containerPort: 5000

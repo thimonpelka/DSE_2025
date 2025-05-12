@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: visor
+spec:
+  selector:
+    app: visor
+  ports:
+  - protocol: TCP
+    port: 88
+    targetPort: 5000

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: central-director
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: central-director
+  template:
+    metadata:
+      labels:
+        app: central-director
+    spec:
+      containers:
+      - name: central-director
+        image: central-director:latest
+        ports:
+        - containerPort: 5000

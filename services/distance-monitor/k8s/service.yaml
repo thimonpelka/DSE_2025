@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: distance-monitor
+spec:
+  selector:
+    app: distance-monitor
+  ports:
+  - protocol: TCP
+    port: 82
+    targetPort: 5000

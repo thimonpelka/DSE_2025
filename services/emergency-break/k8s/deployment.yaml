@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emergency-break
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emergency-break
+  template:
+    metadata:
+      labels:
+        app: emergency-break
+    spec:
+      containers:
+      - name: emergency-break
+        image: emergency-break:latest
+        ports:
+        - containerPort: 5000
