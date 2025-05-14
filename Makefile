@@ -22,7 +22,8 @@ endif
 NAMESPACE := vehicle-platform
 
 # Docker build settings
-DOCKER_BUILD_CMD := eval $$(minikube docker-env) && docker build
+# DOCKER_BUILD_CMD := eval $$(minikube docker-env) && docker build
+DOCKER_BUILD_CMD := docker build
 DOCKER_SERVICES := location-sender location-tracker distance-monitor \
                    emergency-break central-director visor
 
@@ -72,7 +73,7 @@ deploy-mbroker:
 
 deploy-api-gateway:
 	kubectl apply -f services/passenger-api-gateway/k8s/kong-deployment.yaml
-	kubectl apply -f services/passenger-api-gateway/k8s/kong-service.yaml
+	# kubectl apply -f services/passenger-api-gateway/k8s/kong-service.yaml
 	kubectl apply -f services/passenger-api-gateway/k8s/kong-config.yaml
 
 deploy-datamock:
