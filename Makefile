@@ -116,9 +116,13 @@ delete-all: delete-k8s delete-docker
 
 # Status and troubleshooting
 status:
+	@echo -e "\nStatus of all services in the $(NAMESPACE) namespace:\n"
 	kubectl get namespaces
+	@echo -e "\n"
 	kubectl get deployments -n $(NAMESPACE)
+	@echo -e "\n"
 	kubectl get services -n $(NAMESPACE)
+	@echo -e "\n"
 	kubectl get pods -n $(NAMESPACE)
 
 # Logs for services

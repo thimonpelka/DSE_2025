@@ -8,11 +8,14 @@ make start
 ## Deploy everything
 make deploy-all
 
-## Build only Docker services
-make build-docker
+## Build and Deploy only Docker services
+make deploy-docker
 
 ## Deploy only Kubernetes services
 make deploy-k8s
+
+## Only Build Docker images (This does not deploy them to Kubernetes!!)
+make build-docker
 
 ## Check status of all services
 make status
