@@ -7,5 +7,5 @@ spec:
     app: emergency-break
   ports:
   - protocol: TCP
-    port: 83
+    port: 80
     targetPort: 5000

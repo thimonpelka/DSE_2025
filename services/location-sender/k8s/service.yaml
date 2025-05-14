@@ -7,5 +7,5 @@ spec:
     app: location-sender
   ports:
   - protocol: TCP
-    port: 84
+    port: 80
     targetPort: 5000
