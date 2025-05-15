@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: location-sender
+  namespace: vehicle-platform
 spec:
   replicas: 1
   selector:
@@ -14,6 +15,6 @@ spec:
     spec:
       containers:
       - name: location-sender
-        image: location-sender:latest
+        image: location-sender-service:latest
         ports:
         - containerPort: 5000

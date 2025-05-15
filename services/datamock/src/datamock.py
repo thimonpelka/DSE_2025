@@ -1,4 +1,5 @@
 import json
+import os
 import math
 import random
 import threading
@@ -10,28 +11,31 @@ import requests
 
 # Configuration: Endpoint to data keys
 ENDPOINTS = {
-    "http://localhost:5000/gps": ["gps"],
-    "http://localhost:5001/radar_lidar": ["radar", "lidar"],
-    "http://localhost:5002/ultrasonic": ["ultrasonic"],
-    "http://localhost:5003/camera": ["camera"],
-    "http://localhost:5004/imu": ["imu"],
-    "http://localhost:5005/wheel_encoder": ["wheel_encoder"],
-    "http://localhost:5006/temperature": ["temperature"],
-    "http://localhost:5007/battery": ["battery"],
-    "http://localhost:5008/can_bus": ["can_bus"],
-    "http://localhost:5009/full_state": [
-        "gps",
-        "radar",
-        "lidar",
-        "ultrasonic",
-        "camera",
-        "imu",
-        "wheel_encoder",
-        "temperature",
-        "battery",
-        "can_bus",
-    ],
+    "http://location-sender:5000/gps": ["gps"],
 }
+# ENDPOINTS = {
+#     "http://localhost:5000/gps": ["gps"],
+#     "http://localhost:5001/radar_lidar": ["radar", "lidar"],
+#     "http://localhost:5002/ultrasonic": ["ultrasonic"],
+#     "http://localhost:5003/camera": ["camera"],
+#     "http://localhost:5004/imu": ["imu"],
+#     "http://localhost:5005/wheel_encoder": ["wheel_encoder"],
+#     "http://localhost:5006/temperature": ["temperature"],
+#     "http://localhost:5007/battery": ["battery"],
+#     "http://localhost:5008/can_bus": ["can_bus"],
+#     "http://localhost:5009/full_state": [
+#         "gps",
+#         "radar",
+#         "lidar",
+#         "ultrasonic",
+#         "camera",
+#         "imu",
+#         "wheel_encoder",
+#         "temperature",
+#         "battery",
+#         "can_bus",
+#     ],
+# }
 SEND_INTERVAL = 2  # seconds
 EARTH_RADIUS_KM = 6371.0
 
@@ -144,7 +148,8 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
 
 
 def start_simulation() -> None:
-    simulator = VehicleSimulator("VEHICLE123")
+    vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{random.randint(1000,9999)}")
+    simulator = VehicleSimulator(vehicle_id)
     while True:
         full_data = simulator.generate_data()
         send_data_to_endpoints(full_data)

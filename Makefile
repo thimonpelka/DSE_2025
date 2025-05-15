@@ -22,8 +22,17 @@ endif
 NAMESPACE := vehicle-platform
 
 # Docker build settings
-# DOCKER_BUILD_CMD := eval $$(minikube docker-env) && docker build
+# DOCKER_BUILD_CMD := eval $(minikube docker-env) && docker build
 DOCKER_BUILD_CMD := docker build
+DOCKER_LOAD_CMD := :
+ifeq ($(IS_WINDOWS),true)
+	DOCKER_BUILD_CMD := docker build
+	# DOCKER_LOAD_CMD := minikube image load
+else
+	DOCKER_BUILD_CMD := eval $$(minikube docker-env) && docker build
+	DOCKER_LOAD_CMD := :
+endif
+
 DOCKER_SERVICES := location-sender location-tracker distance-monitor \
                    emergency-break central-director visor
 
@@ -53,6 +62,10 @@ deploy-docker: build-docker
 $(DOCKER_SERVICES):
 	@echo "Building $@ service..."
 	$(DOCKER_BUILD_CMD) -t $@-service:latest services/$@
+ifeq ($(IS_WINDOWS),true)
+	@echo "Loading $@ into Minikube..."
+	$(DOCKER_LOAD_CMD) $@-service:latest
+endif
 
 # Deploy Kubernetes-specific services
 deploy-k8s:

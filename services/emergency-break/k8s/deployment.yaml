@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: emergency-break
+  namespace: vehicle-platform
 spec:
   replicas: 1
   selector:
@@ -14,6 +15,6 @@ spec:
     spec:
       containers:
       - name: emergency-break
-        image: emergency-break:latest
+        image: emergency-break-service:latest
         ports:
         - containerPort: 5000

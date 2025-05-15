@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: datamock
+  namespace: vehicle-platform
 spec:
   replicas: 1
   selector:
@@ -14,6 +15,6 @@ spec:
     spec:
       containers:
       - name: datamock
-        image: datamock:latest
+        image: datamock-service:latest
         ports:
         - containerPort: 5000
