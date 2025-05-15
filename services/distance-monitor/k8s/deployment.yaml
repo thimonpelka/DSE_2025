@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: distance-monitor
-        image: distance-monitor-service:latest
+        image: distance-monitor-service:20250515-121310
         ports:
         - containerPort: 5000

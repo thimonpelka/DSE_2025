@@ -15,6 +15,20 @@ spec:
     spec:
       containers:
       - name: location-sender
-        image: location-sender-service:latest
+        image: location-sender-service:20250515-122510
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
+        env:
+          - name: RABBITMQ_HOST
+            value: rabbitmq
+          - name: RABBITMQ_USER
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-credentials
+                key: username
+          - name: RABBITMQ_PASS
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-credentials
+                key: password

@@ -6,8 +6,19 @@ import threading
 import time
 import typing
 from datetime import datetime
-
 import requests
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Log to stdout
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 # Configuration: Endpoint to data keys
 ENDPOINTS = {
@@ -142,9 +153,9 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
             response = requests.post(
                 endpoint, headers=headers, data=json.dumps(payload), timeout=5
             )
-            print(f"[{response.status_code}] Sent to {endpoint}")
+            logging.info(f"[{response.status_code}] Sent to {endpoint}")
         except requests.exceptions.RequestException as e:
-            print(f"Error sending to {endpoint}: {e}")
+            logging.warning(f"Error sending to {endpoint}: {e}")
 
 
 def start_simulation() -> None:
@@ -162,10 +173,10 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    print("Starting modular vehicle sensor simulator...")
+    logging.info("Starting modular vehicle sensor simulator...")
     run()
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Stopped.")
+        logging.info("Stopped.")

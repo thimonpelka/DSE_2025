@@ -15,6 +15,7 @@ spec:
     spec:
       containers:
       - name: datamock
-        image: datamock-service:latest
+        image: datamock-service:20250515-121310
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
