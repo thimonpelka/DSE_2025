@@ -21,8 +21,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration: Endpoint to data keys
+
+# Works across all environments
+# ENDPOINTS = {
+#     "http://location-sender.vehicle-platform.svc.cluster.local/gps": ["gps"],
+# }
+
+# Works only within the same namespace
 ENDPOINTS = {
-    "http://location-sender:5000/gps": ["gps"],
+    "http://location-sender/gps": ["gps"],
 }
 # ENDPOINTS = {
 #     "http://localhost:5000/gps": ["gps"],

@@ -13,9 +13,13 @@ spec:
       labels:
         app: location-sender
     spec:
+      initContainers:
+            - name: wait-for-rabbitmq
+              image: busybox
+              command: ['sh', '-c', 'until nc -z rabbitmq 5672; do echo waiting for rabbitmq; sleep 2; done;']
       containers:
       - name: location-sender
-        image: location-sender-service:20250515-122510
+        image: location-sender-service:20250515-132407
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000

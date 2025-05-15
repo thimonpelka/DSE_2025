@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: emergency-break
-        image: emergency-break-service:20250515-121310
+        image: emergency-break-service:20250515-132500
         ports:
         - containerPort: 5000

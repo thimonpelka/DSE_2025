@@ -39,6 +39,16 @@ spec:
             secretKeyRef:
               name: rabbitmq-credentials
               key: password
+        readinessProbe:
+          tcpSocket:
+            port: 5672
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 5672
+          initialDelaySeconds: 30
+          periodSeconds: 30
         volumeMounts:
         - name: rabbitmq-data
           mountPath: /var/lib/rabbitmq
