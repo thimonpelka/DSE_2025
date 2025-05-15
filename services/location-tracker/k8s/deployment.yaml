@@ -15,6 +15,63 @@ spec:
     spec:
       containers:
       - name: location-tracker
-        image: location-tracker-service:20250515-132426
+        image: location-tracker-service:20250515-144146
         ports:
         - containerPort: 5000
+        env:
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"  # Should match your RabbitMQ service name
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+        - name: DB_PATH
+          value: "/data/gps.db"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: gps-data
+          mountPath: /data
+      volumes:
+      - name: gps-data
+        persistentVolumeClaim:
+          claimName: gps-data-pvc
+
+---
+# PersistentVolumeClaim for the database
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gps-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard  # Use your cluster's storage class
