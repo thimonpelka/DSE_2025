@@ -16,7 +16,7 @@ class RabbitMQHelper:
         """
         # Attempt to read credentials from environment or use provided
         self.username = username or os.getenv(
-            "RABBITMQ_USERNAME", "vehicle-platform-user"
+            "RABBITMQ_USERNAME", "backend-user"
         )
         self.password = password or os.getenv(
             "RABBITMQ_PASSWORD", "secure-rabbitmq-password"

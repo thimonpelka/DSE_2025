@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: central-director
-  namespace: vehicle-platform
+  namespace: backend
 spec:
   replicas: 1
   selector:
@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: central-director
-        image: central-director-service:20250515-143536
+        image: central-director-service:20250518-201509
         ports:
         - containerPort: 5000

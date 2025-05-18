@@ -1,0 +1,39 @@
+{{- if .Values.services.datamock.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datamock
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: datamock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datamock
+  template:
+    metadata:
+      labels:
+        app: datamock
+    spec:
+      containers:
+      - name: datamock
+        image: "{{ .Values.services.datamock.image.repository }}:{{ .Values.services.datamock.image.tag }}"
+        ports:
+        - containerPort: 5000
+        env:
+        - name: VEHICLE_ID
+          value: "{{ .Values.namespace }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datamock-service
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+  - port: 5000
+    targetPort: 5000
+  selector:
+    app: datamock
+{{- end }}

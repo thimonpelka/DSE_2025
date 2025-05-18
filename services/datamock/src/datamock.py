@@ -24,12 +24,13 @@ logger = logging.getLogger(__name__)
 
 # Works across all environments
 # ENDPOINTS = {
-#     "http://location-sender.vehicle-platform.svc.cluster.local/gps": ["gps"],
+#     "http://location-sender.backend.svc.cluster.local/gps": ["gps"],
 # }
 
 # Works only within the same namespace
 ENDPOINTS = {
     "http://location-sender/gps": ["gps"],
+    "http://distance-monitor/sensor-data": ["ultrasonic", "radar", "camera"],
 }
 # ENDPOINTS = {
 #     "http://localhost:5000/gps": ["gps"],
@@ -88,6 +89,9 @@ class VehicleSimulator:
         timestamp = datetime.utcnow().isoformat() + "Z"
         self.update_position()
 
+        true_front_distance_m = round(random.uniform(1, 10), 2)
+        true_rear_distance_m = round(random.uniform(1, 5), 2)
+
         return {
             "timestamp": timestamp,
             "vehicle_id": self.vehicle_id,
@@ -98,24 +102,28 @@ class VehicleSimulator:
                 "accuracy_m": round(random.uniform(0.5, 5.0), 2),
             },
             "radar": {
-                "object_distance_m": round(random.uniform(1, 150), 2),
-                "object_speed_kmh": round(random.uniform(-20, 120), 2),
-                "signal_strength": round(random.uniform(0.1, 1.0), 2),
+                "object_distance_m": round(true_front_distance_m + random.uniform(-0.5, 0.5), 2),
+                "object_speed_kmh": round(random.uniform(-10, 50), 2),
+                "signal_strength": round(random.uniform(0.3, 1.0), 2),
             },
             "lidar": {
-                "point_cloud_density": random.randint(800, 2000),
-                "avg_reflectivity": round(random.uniform(0.2, 1.0), 2),
-                "object_count": random.randint(0, 20),
+                "point_cloud_density": random.randint(1000, 2000),  # High density = good resolution
+                "avg_reflectivity": round(random.uniform(0.4, 1.0), 2),
+                "object_count": random.randint(1, 3),
+                "front_estimate_m": round(true_front_distance_m + random.uniform(-0.2, 0.2), 2),
+                "rear_estimate_m": round(true_rear_distance_m + random.uniform(-0.2, 0.2), 2),
             },
             "ultrasonic": {
-                "front_distance_cm": random.randint(20, 400),
-                "rear_distance_cm": random.randint(20, 400),
-                "side_distance_cm": [random.randint(20, 400) for _ in range(2)],
+                "front_distance_cm": int((true_front_distance_m + random.uniform(-0.1, 0.1)) * 100),
+                "rear_distance_cm": int((true_rear_distance_m + random.uniform(-0.1, 0.1)) * 100),
+                "side_distance_cm": [random.randint(30, 200), random.randint(30, 200)],
             },
             "camera": {
                 "frame_quality": round(random.uniform(0.6, 1.0), 2),
                 "lighting_level": round(random.uniform(0.3, 1.0), 2),
                 "object_detection_count": random.randint(0, 10),
+                "front_estimate_m": round(true_front_distance_m + random.uniform(-0.3, 0.3), 2),
+                "rear_estimate_m": round(true_rear_distance_m + random.uniform(-0.3, 0.3), 2),
             },
             "imu": {
                 "accel_x": round(random.uniform(-3.0, 3.0), 2),

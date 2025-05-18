@@ -1,0 +1,28 @@
+rabbitmqCredentials:
+  username: username
+  password: password
+
+rabbitmq:
+  namespace: backend
+
+services:
+  datamock:
+    enabled: true
+    image:
+      repository: datamock-service
+      tag: 20250518-141247
+  locationSender:
+    enabled: true
+    image:
+      repository: location-sender-service
+      tag: 20250518-141247
+  distanceMonitor:
+    enabled: true
+    image:
+      repository: distance-monitor-service
+      tag: 20250518-141247
+  emergencyBrake:
+    enabled: true
+    image:
+      repository: emergency-brake-service
+      tag: 20250518-141247

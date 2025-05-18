@@ -8,13 +8,13 @@ Write-Host "Configuring Docker to use Minikube's Docker daemon..."
 Invoke-Expression (& minikube -p minikube docker-env --shell powershell | Out-String)
 
 Write-Host "Minikube started and Docker environment configured."
-Write-Host "Checking for Kubernetes namespace 'vehicle-platform'..."
+Write-Host "Checking for Kubernetes namespace 'backend'..."
 
 try {
-    $null = kubectl get namespace vehicle-platform 2>$null
-    Write-Host "Namespace 'vehicle-platform' already exists."
+    $null = kubectl get namespace backend 2>$null
+    Write-Host "Namespace 'backend' already exists."
 } catch {
-    Write-Host "Namespace 'vehicle-platform' not found. Creating it..."
-    kubectl create namespace vehicle-platform
-    Write-Host "Namespace 'vehicle-platform' created."
+    Write-Host "Namespace 'backend' not found. Creating it..."
+    kubectl create namespace backend
+    Write-Host "Namespace 'backend' created."
 }
