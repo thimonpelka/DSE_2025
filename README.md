@@ -8,6 +8,7 @@ This guide explains how to deploy and manage the Vehicle Platform microservices 
 - kubectl installed
 - Docker installed
 - Make installed
+- Helm installed
 
 ## Quick Start
 
@@ -46,6 +47,9 @@ make deploy-k8s
 
 # Deploy just Docker services (microservices)
 make deploy-docker
+
+# Deploy vehicle stack (for all vehicles)
+make vehicle-stack-deploy
 ```
 
 ### Updating Services After Code Changes
@@ -111,13 +115,11 @@ make delete-k8s
 
 These services can be updated/deployed individually using `make <service-name>`:
 
-- `location-sender`
 - `location-tracker`
-- `distance-monitor`
-- `emergency-break`
 - `central-director`
 - `visor`
-- `datamock`
+
+> **Note:** Other microservices (`datamock`, `distance-monitor`, `emergency-brake`, `location-sender`) are built and deployed as part of the `make vehicle-stack-deploy` command, not as individual Makefile targets.
 
 ### Available Kubernetes Services
 
@@ -126,6 +128,18 @@ These infrastructure services can be deployed individually:
 - `make deploy-mbroker` - Deploy RabbitMQ message broker
 - `make deploy-api-gateway` - Deploy Kong API Gateway
 - `make deploy-datamock` - Deploy data mock service
+
+> **Tip:** Use `make deploy-k8s` to deploy all Kubernetes infrastructure services at once.
+
+### Vehicle Stack Configuration
+
+The number of vehicles to deploy can be specified in the Makefile by editing the `VEHICLES` variable:
+
+```makefile
+VEHICLES = vehicle-1 vehicle-2
+```
+
+Add or remove vehicle names in this list to control how many vehicle stacks are deployed with `make vehicle-stack-deploy`.
 
 ## Development Workflow
 
@@ -157,5 +171,5 @@ If services aren't updating:
 
 If you need to force a restart of a service:
 ```bash
-kubectl rollout restart deployment <service-name> -n vehicle-platform
+kubectl rollout restart deployment <service-name> -n backend
 ```

@@ -1,0 +1,41 @@
+{{- if .Values.services.emergencyBrake.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emergency-brake
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: emergency-brake
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: emergency-brake
+  template:
+    metadata:
+      labels:
+        app: emergency-brake
+    spec:
+      containers:
+      - name: emergency-brake
+        image: "{{ .Values.services.emergencyBrake.image.repository }}:{{ .Values.services.emergencyBrake.image.tag }}"
+        ports:
+        - containerPort: 5000
+        env:
+        - name: VEHICLE_ID
+          value: "{{ .Values.namespace }}"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emergency-brake
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    app: emergency-brake
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: ClusterIP
+{{- end }}

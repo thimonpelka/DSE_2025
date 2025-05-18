@@ -19,7 +19,8 @@ else
 endif
 
 # Namespace
-NAMESPACE := vehicle-platform
+NAMESPACE := backend
+VEHICLES = vehicle-1 vehicle-2
 
 # Generate timestamp for dynamic version tags
 VERSION_TAG := $(shell $(DATE_CMD))
@@ -35,8 +36,8 @@ else
 	DOCKER_LOAD_CMD := :
 endif
 
-DOCKER_SERVICES := location-sender location-tracker distance-monitor \
-                   emergency-break central-director visor datamock
+DOCKER_SERVICES := location-tracker \
+                   central-director visor
 
 # Kubernetes configuration services
 K8S_SERVICES := mbroker api-gateway
@@ -111,7 +112,7 @@ deploy-datamock:
 	kubectl apply -f services/datamock/k8s/service.yaml
 
 # Comprehensive deploy target
-deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker
+deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker vehicle-stack-deploy
 
 # Delete targets
 delete-docker:
@@ -143,6 +144,40 @@ delete-datamock:
 
 # Delete everything
 delete-all: delete-k8s delete-docker
+
+# Deploy all vehicle stacks
+vehicle-stack-deploy:
+	@echo "🔨 Building datamock Docker image with tag $(VERSION_TAG)..."
+	$(DOCKER_BUILD_CMD) -t datamock-service:$(VERSION_TAG) -t datamock-service:latest services/datamock
+	$(DOCKER_LOAD_CMD) datamock-service:$(VERSION_TAG)
+
+	@echo "🔨 Building distance-monitor Docker image with tag $(VERSION_TAG)..."
+	$(DOCKER_BUILD_CMD) -t distance-monitor-service:$(VERSION_TAG) -t distance-monitor-service:latest services/distance-monitor
+	$(DOCKER_LOAD_CMD) distance-monitor-service:$(VERSION_TAG)
+
+	@echo "🔨 Building location-sender Docker image with tag $(VERSION_TAG)..."
+	$(DOCKER_BUILD_CMD) -t location-sender-service:$(VERSION_TAG) -t location-sender-service:latest services/location-sender
+	$(DOCKER_LOAD_CMD) location-sender-service:$(VERSION_TAG)
+
+	@echo "🚨 Building emergency-brake Docker image with tag $(VERSION_TAG)..."
+	$(DOCKER_BUILD_CMD) -t emergency-brake-service:$(VERSION_TAG) -t emergency-brake-service:latest services/emergency-brake
+	$(DOCKER_LOAD_CMD) emergency-brake-service:$(VERSION_TAG)
+
+	@echo "🚀 Deploying vehicle stacks with Helm..."
+	@for v in $(VEHICLES); do \
+		echo "➡️  Deploying $$v..."; \
+		helm upgrade --install $$v ./vehicle-stack \
+			--namespace $$v \
+			--create-namespace \
+			--set namespace=$$v \
+			--set rabbitmq.namespace=$(NAMESPACE) \
+			--set rabbitmqCredentials.username=username \
+			--set rabbitmqCredentials.password=password \
+			--set services.datamock.image.tag=$(VERSION_TAG) \
+			--set services.distanceMonitor.image.tag=$(VERSION_TAG) \
+			--set services.emergencyBrake.image.tag=$(VERSION_TAG) \
+			--set services.locationSender.image.tag=$(VERSION_TAG); \
+	done
 
 # Status and troubleshooting
 status:

@@ -7,4 +7,4 @@ RUN pip install -r requirements.txt
 COPY src/ .
 
 EXPOSE 5000
-CMD ["python", "distance-monitor.py"]
+CMD ["python", "emergency-brake.py"]

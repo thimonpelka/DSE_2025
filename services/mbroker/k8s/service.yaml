@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq
-  namespace: vehicle-platform
+  namespace: backend
 spec:
   selector:
     app: rabbitmq
