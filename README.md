@@ -52,6 +52,14 @@ make deploy-docker
 make vehicle-stack-deploy
 ```
 
+### Accesing Visor
+
+```bash
+# Creates tunnel to acces visor
+minikube tunnel
+```
+Visor can be accesed via http://127.0.0.1/
+
 ### Updating Services After Code Changes
 
 ```bash

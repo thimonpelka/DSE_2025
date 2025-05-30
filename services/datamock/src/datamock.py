@@ -9,6 +9,7 @@ from datetime import datetime
 import requests
 import logging
 import sys
+import math
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,22 @@ logger = logging.getLogger(__name__)
 # }
 
 # Works only within the same namespace
+SAMPLE_ROUTE = [
+    (48.202349, 16.369632),
+    (48.203518, 16.364254),
+    (48.207107, 16.359645),
+    (48.213656, 16.361653),
+    (48.217606, 16.370971),
+    (48.214020, 16.374217),
+    (48.211647, 16.378848),
+    (48.211160, 16.385109),
+    (48.205869, 16.382407),
+    (48.204504, 16.383228),
+    (48.201791, 16.380067),
+    (48.203289, 16.376624),
+    (48.201387, 16.373687),
+]
+
 ENDPOINTS = {
     "http://location-sender/gps": ["gps"],
     "http://distance-monitor/sensor-data": ["ultrasonic", "radar", "camera"],
@@ -58,36 +75,56 @@ ENDPOINTS = {
 SEND_INTERVAL = 2  # seconds
 EARTH_RADIUS_KM = 6371.0
 
-
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0  # Earth radius in km
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(d_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 class VehicleSimulator:
-    def __init__(self, vehicle_id: str, lat: float = 40.0, lon: float = -74.0) -> None:
+    def __init__(self, vehicle_id: str, route: list[tuple[float, float]], speed_kmh=50.0):
         self.vehicle_id = vehicle_id
-        self.latitude = lat
-        self.longitude = lon
+        self.route = route
+        self.speed_kmh = speed_kmh
+        self.current_index = 0
+        self.latitude, self.longitude = route[0]
         self.altitude = 10.0
-        self.speed_kmh = 50.0
         self.last_update_time = time.time()
 
-    def update_position(self) -> None:
+        
+
+    def move_along_route(self):
         current_time = time.time()
         elapsed = current_time - self.last_update_time
         self.last_update_time = current_time
 
-        # Evolve speed
-        self.speed_kmh += random.uniform(-3, 3)
-        self.speed_kmh = max(0, min(180, self.speed_kmh))
+        if self.current_index >= len(self.route) - 1:
+            self.current_index = 0  # Loop route
 
-        # Move based on speed
-        distance_km = (self.speed_kmh / 3600) * elapsed
-        delta_lat = (distance_km / EARTH_RADIUS_KM) * (180 / math.pi)
-        delta_lon = delta_lat / math.cos(math.radians(self.latitude))
-        self.latitude += delta_lat
-        self.longitude += delta_lon
+        lat1, lon1 = self.latitude, self.longitude
+        lat2, lon2 = self.route[self.current_index + 1]
+
+        distance_to_next_km = haversine(lat1, lon1, lat2, lon2)
+        distance_travelled_km = (self.speed_kmh / 3600) * elapsed
+
+        if distance_travelled_km >= distance_to_next_km:
+            # Reach next waypoint
+            self.latitude, self.longitude = lat2, lon2
+            self.current_index += 1
+        else:
+            # Move fractionally along path
+            fraction = distance_travelled_km / distance_to_next_km
+            self.latitude = lat1 + (lat2 - lat1) * fraction
+            self.longitude = lon1 + (lon2 - lon1) * fraction
+
+        # Simulate altitude noise
         self.altitude += random.uniform(-0.5, 0.5)
 
     def generate_data(self) -> dict[str, typing.Any]:
         timestamp = datetime.utcnow().isoformat() + "Z"
-        self.update_position()
+        self.move_along_route()
 
         true_front_distance_m = round(random.uniform(1, 10), 2)
         true_rear_distance_m = round(random.uniform(1, 5), 2)
@@ -175,7 +212,7 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
 
 def start_simulation() -> None:
     vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{random.randint(1000,9999)}")
-    simulator = VehicleSimulator(vehicle_id)
+    simulator = VehicleSimulator(vehicle_id, SAMPLE_ROUTE)
     while True:
         full_data = simulator.generate_data()
         send_data_to_endpoints(full_data)

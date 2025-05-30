@@ -40,7 +40,7 @@ DOCKER_SERVICES := location-tracker \
                    central-director visor
 
 # Kubernetes configuration services
-K8S_SERVICES := mbroker api-gateway
+K8S_SERVICES := mbroker
 
 # Define a function to update image tag in deployment files
 # The function takes a service name as parameter
@@ -102,17 +102,26 @@ deploy-mbroker:
 	kubectl apply -f services/mbroker/k8s/deployment.yaml
 	kubectl apply -f services/mbroker/k8s/service.yaml
 
-deploy-api-gateway:
-	kubectl apply -f services/passenger-api-gateway/k8s/kong-deployment.yaml
-	# kubectl apply -f services/passenger-api-gateway/k8s/kong-service.yaml
-	kubectl apply -f services/passenger-api-gateway/k8s/kong-config.yaml
-
 deploy-datamock:
 	kubectl apply -f services/datamock/k8s/deployment.yaml
 	kubectl apply -f services/datamock/k8s/service.yaml
 
+deploy-ingresses:
+	kubectl apply -f services/passenger-api-gateway/k8s/ingress.yaml
+
 # Comprehensive deploy target
-deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker vehicle-stack-deploy
+deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker vehicle-stack-deploy deploy-ingresses install-kong
+
+# Install Kong via Helm in the kong namespace
+install-kong:
+	@echo "📦 Installing Kong Ingress Controller via Helm in namespace 'kong'..."
+	helm upgrade --install kong kong/ingress \
+		--namespace kong \
+		--create-namespace \
+		--set proxy.http.enabled=true \
+		--set proxy.http.servicePort=80 \
+		--set proxy.containerPort.http=80 \
+		--set ingressController.installCRDs=false
 
 # Delete targets
 delete-docker:
@@ -135,7 +144,6 @@ delete-mbroker:
 
 delete-api-gateway:
 	kubectl delete -f services/passenger-api-gateway/k8s/kong-service.yaml
-	kubectl delete -f services/passenger-api-gateway/k8s/kong-deployment.yaml
 	kubectl delete -f services/passenger-api-gateway/k8s/kong-config.yaml
 
 delete-datamock:

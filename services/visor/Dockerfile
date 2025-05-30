@@ -1,1 +1,2 @@
-FROM python:3.11-slim
+FROM nginx:alpine
+COPY src/index.html /usr/share/nginx/html/index.html

@@ -222,6 +222,43 @@ def get_vehicle_location(vehicle_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/vehicles/latest-locations", methods=["GET"])
+def get_latest_locations():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT vehicle_id, latitude, longitude, timestamp
+            FROM gps_data
+            WHERE id IN (
+                SELECT MAX(id) FROM gps_data GROUP BY vehicle_id
+            )
+        """)
+        results = cursor.fetchall()
+        conn.close()
+
+        locations = [
+            {
+                "vehicle_id": row["vehicle_id"],
+                "gps": {
+                    "latitude": row["latitude"],
+                    "longitude": row["longitude"],
+                },
+                "timestamp": row["timestamp"],
+            }
+            for row in results
+        ]
+
+        return jsonify(locations)
+
+    except Exception as e:
+        logger.error(f"Error retrieving latest locations: {str(e)}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
+
+
+
 # Initialize the application
 if __name__ == "__main__":
     # Initialize database
