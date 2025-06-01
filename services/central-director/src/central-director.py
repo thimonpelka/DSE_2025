@@ -68,7 +68,8 @@ def init_rabbitmq():
         channel.basic_qos(prefetch_count=1)
         channel.basic_consume(queue=RABBITMQ_DM_QUEUE, on_message_callback=dm_callback)
         channel.basic_consume(queue=RABBITMQ_EVENT_QUEUE, on_message_callback=event_callback)
-        logger.info("RabbitMQ initialized successfully")
+        logger.info("RabbitMQ connection established")
+        channel.start_consuming()
         return True
     except Exception as e:
         logger.error(f"Failed to connect to RabbitMQ: {e}")
@@ -103,7 +104,7 @@ def save_event(event_type, details):
     c = conn.cursor()
     c.execute(
         "INSERT INTO events (timestamp, event_type, details) VALUES (?, ?, ?)",
-        (datetime.now(datetime.UTC).isoformat(), event_type, details),
+        (datetime.utcnow().isoformat(), event_type, details),
     )
     conn.commit()
     conn.close()
@@ -147,6 +148,8 @@ def trigger_emergency_break(vehicle_id, reason):
                 body=json.dumps(msg),
                 properties=pika.BasicProperties(delivery_mode=2),  # make message persistent
             )
+            logger.info(f"Published emergency brake for {vehicle_id}: {reason}")
+            # Save event to database
             save_event("emergency_break", f"Published brake for {vehicle_id}: {reason}")
     except Exception as e:
         save_event("error", f"Failed to publish EB message: {e}")
@@ -160,6 +163,7 @@ def process_message(data):
       - Log messages (contains 'log_message')
     """
     if data.get("front_velocity_mps") is not None and data.get("front_distance_m") is not None:
+        logger.info(f"Processing Distance Monitor data: {data}")
         # Distance Monitor message
         vehicle = data.get("vehicle_id")
         distance = data.get("front_distance_m")
@@ -176,6 +180,7 @@ def process_message(data):
         if trigger:
             trigger_emergency_break(vehicle, reason)
     elif data.get("lat") is not None and data.get("lng") is not None:
+        logger.info(f"Processing Location Tracker data: {data}")
         # Location Tracker message
         vehicle = data.get("vehicle_id")
         lat = data.get("lat")
@@ -188,6 +193,7 @@ def process_message(data):
         vehicle = data.get("vehicle_id", "unknown")
         save_event(sender, f"[{vehicle}] {msg}")
     else:
+        logger.warning(f"Received unknown message format: {data}")
         save_event("unknown_message", json.dumps(data))
 
 

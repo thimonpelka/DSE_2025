@@ -21,6 +21,21 @@ spec:
         image: "{{ .Values.services.distanceMonitor.image.repository }}:{{ .Values.services.distanceMonitor.image.tag }}"
         ports:
         - containerPort: 5000
+        env:
+        - name: VEHICLE_ID
+          value: "{{ .Values.namespace }}"
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.{{ .Values.rabbitmq.namespace }}.svc.cluster.local"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
 ---
 apiVersion: v1
 kind: Service
