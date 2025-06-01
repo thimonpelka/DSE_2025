@@ -15,6 +15,64 @@ spec:
     spec:
       containers:
       - name: central-director
-        image: central-director-service:20250522-221800
+        image: central-director-service:20250601-214415
         ports:
         - containerPort: 5000
+        env:
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"  # should match your RabbitMQ Service name
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
+        - name: DB_PATH
+          value: "/data/cd_events.db"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu:    "100m"
+          limits:
+            memory: "512Mi"
+            cpu:    "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        volumeMounts:
+        - name: cd-events-data
+          mountPath: /data
+      volumes:
+      - name: cd-events-data
+        persistentVolumeClaim:
+          claimName: cd-events-pvc
+
+---
+# PersistentVolumeClaim for Central Director's SQLite database
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cd-events-pvc
+  namespace: backend
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard  # adjust to your cluster’s storage class

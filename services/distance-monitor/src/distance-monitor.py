@@ -1,9 +1,11 @@
 import json
+import os
 import sys
 import logging
 from flask import Flask, request, jsonify
 from datetime import datetime
 import requests
+import pika
 
 # Configure logging
 logging.basicConfig(
@@ -14,10 +16,44 @@ logging.basicConfig(
 )
 logger = logging.getLogger()
 
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
+RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "distance_data")
+# RabbitMQ credentials
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
+RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "guest")
+RABBITMQ_RECONNECT_DELAY = int(os.getenv("RABBITMQ_RECONNECT_DELAY", "5"))
+
 app = Flask(__name__)
+
+connection = None
+channel = None
 
 # Store last sensor readings and timestamps per vehicle for delta calculation
 last_readings = {}
+
+
+def connect_to_rabbitmq():
+    """Connect to RabbitMQ and return connection and channel"""
+    global connection, channel
+    try:
+        logger.info("Attempting to connect to RabbitMQ...")
+        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(
+                host=RABBITMQ_HOST,
+                credentials=credentials,
+                heartbeat=600,  # Increase heartbeat for better connection stability
+                blocked_connection_timeout=300,
+            )
+        )
+        channel = connection.channel()
+        channel.queue_declare(queue=RABBITMQ_QUEUE, durable=True)
+        logger.info("Successfully connected to RabbitMQ")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to connect to RabbitMQ: {e}")
+        return False
+
 
 def calculate_distance_meters(data):
     """
@@ -89,10 +125,10 @@ def calculate_velocity(vehicle_id, front, rear, timestamp):
 
     return velocity
 
+
 def send_processed_data(vehicle_id, front, rear, velocity, timestamp):
-    url = "http://emergency-brake/processed-data" 
-    
-    payload = {
+    # Construct the message payload
+    msg = {
         "vehicle_id": vehicle_id,
         "front_distance_m": front,
         "rear_distance_m": rear,
@@ -100,11 +136,28 @@ def send_processed_data(vehicle_id, front, rear, velocity, timestamp):
         "rear_velocity_mps": velocity["rear_mps"],
         "timestamp": timestamp.isoformat(),
     }
+    # First: send HTTP POST to Emergency Brake service
+    url = "http://emergency-brake/processed-data"
     try:
-        response = requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=msg, timeout=5)
         response.raise_for_status()
+        logger.info(f"Sent processed data via HTTP for {vehicle_id}")
     except Exception as e:
-        logger.error(f"Failed to send processed data to {url}: {e}")
+        logger.error(f"Failed to send processed data via HTTP: {e}")
+    # Second: publish the same payload to RabbitMQ
+    try:
+        global channel
+        if channel is not None:
+            channel.basic_publish(
+                exchange="",
+                routing_key=RABBITMQ_QUEUE,
+                body=json.dumps(msg),
+                properties=pika.BasicProperties(delivery_mode=2),  # persistent
+            )
+            logger.info(f"Published processed data for {vehicle_id}: {msg}")
+    except Exception as e:
+        logger.error(f"Failed to publish processed data: {e}")
+
 
 @app.route("/sensor-data", methods=["POST"])
 def receive_sensor_data():
@@ -135,8 +188,13 @@ def receive_sensor_data():
         logger.error(f"Error processing sensor data: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
+
 if __name__ == "__main__":
     app.logger.handlers = logger.handlers
     app.logger.setLevel(logger.level)
     logger.info("Starting Distance Monitor on 0.0.0.0:5000")
+    if not connect_to_rabbitmq():
+        logger.error("Failed to connect to RabbitMQ on startup, exiting")
+        sys.exit(1)
+    # Start Flask app
     app.run(host="0.0.0.0", port=5000)
