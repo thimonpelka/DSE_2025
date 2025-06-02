@@ -55,12 +55,14 @@ def connect_to_rabbitmq():
         return False
 
 
+
 def calculate_distance_meters(data):
     """
     Extract front and rear distances from sensor data in meters.
     Ultrasonic is in cm, convert to m.
     Radar and camera distances assumed in meters.
     Combines sensors by averaging all available front and rear distances.
+    Handles None values by filtering them out before averaging.
     """
 
     front_distances = []
@@ -68,21 +70,21 @@ def calculate_distance_meters(data):
 
     # Ultrasonic: convert cm to meters
     ultrasonic = data.get("ultrasonic", {})
-    if "front_distance_cm" in ultrasonic:
+    if "front_distance_cm" in ultrasonic and ultrasonic["front_distance_cm"] is not None:
         front_distances.append(ultrasonic["front_distance_cm"] / 100.0)
-    if "rear_distance_cm" in ultrasonic:
+    if "rear_distance_cm" in ultrasonic and ultrasonic["rear_distance_cm"] is not None:
         rear_distances.append(ultrasonic["rear_distance_cm"] / 100.0)
 
     # Radar: assumed front distance
     radar = data.get("radar", {})
-    if "object_distance_m" in radar:
+    if "object_distance_m" in radar and radar["object_distance_m"] is not None:
         front_distances.append(radar["object_distance_m"])
 
     # Camera: use front_estimate_m and rear_estimate_m if available
     camera = data.get("camera", {})
-    if "front_estimate_m" in camera:
+    if "front_estimate_m" in camera and camera["front_estimate_m"] is not None:
         front_distances.append(camera["front_estimate_m"])
-    if "rear_estimate_m" in camera:
+    if "rear_estimate_m" in camera and camera["rear_estimate_m"] is not None:
         rear_distances.append(camera["rear_estimate_m"])
 
     # Compute averages if we have any readings, else None

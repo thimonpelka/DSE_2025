@@ -27,193 +27,216 @@ logger = logging.getLogger(__name__)
 # Create Flask app
 app = Flask(__name__)
 
-# Configuration: Endpoint to data keys
-
-# Works across all environments
-# ENDPOINTS = {
-#     "http://location-sender.backend.svc.cluster.local/gps": ["gps"],
-# }
-
-# Works only within the same namespace
-SAMPLE_ROUTE = [
-    (48.202349, 16.369632),
-    (48.203518, 16.364254),
-    (48.207107, 16.359645),
-    (48.213656, 16.361653),
-    (48.217606, 16.370971),
-    (48.214020, 16.374217),
-    (48.211647, 16.378848),
-    (48.211160, 16.385109),
-    (48.205869, 16.382407),
-    (48.204504, 16.383228),
-    (48.201791, 16.380067),
-    (48.203289, 16.376624),
-    (48.201387, 16.373687),
-]
-
 ENDPOINTS = {
     "http://location-sender/gps": ["gps"],
     "http://distance-monitor/sensor-data": ["ultrasonic", "radar", "camera"],
 }
-# ENDPOINTS = {
-#     "http://localhost:5000/gps": ["gps"],
-#     "http://localhost:5001/radar_lidar": ["radar", "lidar"],
-#     "http://localhost:5002/ultrasonic": ["ultrasonic"],
-#     "http://localhost:5003/camera": ["camera"],
-#     "http://localhost:5004/imu": ["imu"],
-#     "http://localhost:5005/wheel_encoder": ["wheel_encoder"],
-#     "http://localhost:5006/temperature": ["temperature"],
-#     "http://localhost:5007/battery": ["battery"],
-#     "http://localhost:5008/can_bus": ["can_bus"],
-#     "http://localhost:5009/full_state": [
-#         "gps",
-#         "radar",
-#         "lidar",
-#         "ultrasonic",
-#         "camera",
-#         "imu",
-#         "wheel_encoder",
-#         "temperature",
-#         "battery",
-#         "can_bus",
-#     ],
-# }
-SEND_INTERVAL = 2  # seconds
-EARTH_RADIUS_KM = 6371.0
+
+SEND_INTERVAL = 1  # seconds
+
+# Sensor range limits (in meters)
+SENSOR_RANGES = {
+    "radar": {"min": 0.5, "max": 200.0},
+    "ultrasonic": {"min": 0.02, "max": 8.0},  # 2cm to 8m
+    "camera": {"min": 1.0, "max": 150.0}
+}
+
+# Global variables for emergency braking
+emergency_brake_state = {
+    "is_braking": False,
+    "brake_start_time": None,
+    "brake_duration": 10,
+    "brake_position": None
+}
+brake_lock = threading.Lock()
+
+# Global simulator reference
+global_simulator = None
+simulator_lock = threading.Lock()
 
 
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0  # Earth radius in km
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    d_phi = math.radians(lat2 - lat1)
-    d_lambda = math.radians(lon2 - lon1)
-    a = (
-        math.sin(d_phi / 2) ** 2
-        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c
+def load_simulation_data(vehicle_id: str) -> dict:
+    """Load simulation data from JSON file based on vehicle ID"""
+    filename = f"{vehicle_id}-simulation-data.json"
+
+    try:
+        with open(filename, 'r') as file:
+            data = json.load(file)
+            logger.info(f"Loaded simulation data from {filename}")
+            return data
+    except FileNotFoundError:
+        logger.error(f"Simulation data file {filename} not found")
+        return None
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing JSON file {filename}: {e}")
+        return None
+
+
+def apply_sensor_deviation(distance_m: float, sensor_type: str) -> float:
+    """Apply sensor-specific deviation to distance measurement"""
+    if distance_m is None:
+        return None
+
+    # Define deviation ranges for each sensor type
+    deviations = {
+        "ultrasonic": random.uniform(-0.1, 0.1),  # ±10cm deviation
+        "radar": random.uniform(-0.5, 0.5),  # ±50cm deviation
+        "camera": random.uniform(-0.3, 0.3)  # ±30cm deviation
+    }
+
+    deviation = deviations.get(sensor_type, 0)
+    adjusted_distance = distance_m + deviation
+
+    # Ensure minimum distance constraints
+    min_distance = SENSOR_RANGES[sensor_type]["min"]
+    return max(min_distance, adjusted_distance)
+
+
+def is_distance_in_sensor_range(distance_m: float, sensor_type: str) -> bool:
+    """Check if distance is within sensor detection range"""
+    if distance_m is None:
+        return False
+
+    sensor_range = SENSOR_RANGES[sensor_type]
+    return sensor_range["min"] <= distance_m <= sensor_range["max"]
 
 
 class VehicleSimulator:
-    def __init__(
-        self, vehicle_id: str, route: list[tuple[float, float]], speed_kmh=50.0
-    ):
+    def __init__(self, vehicle_id: str):
         self.vehicle_id = vehicle_id
-        self.route = route
-        self.speed_kmh = speed_kmh
-        self.current_index = 0
-        self.latitude, self.longitude = route[0]
-        self.altitude = 10.0
-        self.last_update_time = time.time()
+        self.simulation_data = load_simulation_data(vehicle_id)
+        self.current_data_index = 0
+        self.start_time = time.time()
 
-    def move_along_route(self):
-        current_time = time.time()
-        elapsed = current_time - self.last_update_time
-        self.last_update_time = current_time
+        if not self.simulation_data:
+            raise ValueError(f"Could not load simulation data for {vehicle_id}")
 
-        if self.current_index >= len(self.route) - 1:
-            self.current_index = 0  # Loop route
+        self.data_points = self.simulation_data.get("data", [])
+        self.simulation_info = self.simulation_data.get("simulation_info", {})
 
-        lat1, lon1 = self.latitude, self.longitude
-        lat2, lon2 = self.route[self.current_index + 1]
+        logger.info(f"Initialized simulator for {vehicle_id} with {len(self.data_points)} data points")
 
-        distance_to_next_km = haversine(lat1, lon1, lat2, lon2)
-        distance_travelled_km = (self.speed_kmh / 3600) * elapsed
+    def get_current_data_point(self) -> dict:
+        """Get current simulation data point based on elapsed time"""
+        if not self.data_points:
+            return None
 
-        if distance_travelled_km >= distance_to_next_km:
-            # Reach next waypoint
-            self.latitude, self.longitude = lat2, lon2
-            self.current_index += 1
+        with brake_lock:
+            # If emergency braking, return the brake position
+            if emergency_brake_state["is_braking"]:
+                return emergency_brake_state["brake_position"]
+
+        elapsed_ms = int((time.time() - self.start_time) * 1000)
+
+        # Find the appropriate data point based on elapsed time
+        for i, data_point in enumerate(self.data_points):
+            if data_point["time_elapsed_ms"] >= elapsed_ms:
+                self.current_data_index = i
+                return data_point
+
+        # If we've passed all data points, loop back to start
+        self.start_time = time.time()
+        self.current_data_index = 0
+        return self.data_points[0]
+
+    def generate_realistic_sensor_data(self, sim_data_point: dict) -> dict:
+        """Generate sensor data based on simulation data with realistic deviations"""
+        distances = sim_data_point.get("distances", {})
+        front_distance_m = distances.get("front_distance_m")
+        rear_distance_m = distances.get("rear_distance_m")
+
+        sensor_data = {}
+
+        # ULTRASONIC data (front_distance_cm, rear_distance_cm)
+        if is_distance_in_sensor_range(front_distance_m, "ultrasonic"):
+            adjusted_front = apply_sensor_deviation(front_distance_m, "ultrasonic")
+            sensor_data["ultrasonic_front_distance_cm"] = int(adjusted_front * 100)
         else:
-            # Move fractionally along path
-            fraction = distance_travelled_km / distance_to_next_km
-            self.latitude = lat1 + (lat2 - lat1) * fraction
-            self.longitude = lon1 + (lon2 - lon1) * fraction
+            sensor_data["ultrasonic_front_distance_cm"] = None  # No detection
 
-        # Simulate altitude noise
-        self.altitude += random.uniform(-0.5, 0.5)
+        if is_distance_in_sensor_range(rear_distance_m, "ultrasonic"):
+            adjusted_rear = apply_sensor_deviation(rear_distance_m, "ultrasonic")
+            sensor_data["ultrasonic_rear_distance_cm"] = int(adjusted_rear * 100)
+        else:
+            sensor_data["ultrasonic_rear_distance_cm"] = None  # No detection
+
+        # RADAR data (object_distance_m) - only front detection
+        if is_distance_in_sensor_range(front_distance_m, "radar"):
+            adjusted_front = apply_sensor_deviation(front_distance_m, "radar")
+            sensor_data["radar_object_distance_m"] = round(adjusted_front, 2)
+        else:
+            sensor_data["radar_object_distance_m"] = None  # No detection
+
+        # CAMERA data (front_estimate_m, rear_estimate_m)
+        if is_distance_in_sensor_range(front_distance_m, "camera"):
+            adjusted_front = apply_sensor_deviation(front_distance_m, "camera")
+            sensor_data["camera_front_estimate_m"] = round(adjusted_front, 2)
+        else:
+            sensor_data["camera_front_estimate_m"] = None  # No detection
+
+        if is_distance_in_sensor_range(rear_distance_m, "camera"):
+            adjusted_rear = apply_sensor_deviation(rear_distance_m, "camera")
+            sensor_data["camera_rear_estimate_m"] = round(adjusted_rear, 2)
+        else:
+            sensor_data["camera_rear_estimate_m"] = None  # No detection
+
+        return sensor_data
 
     def generate_data(self) -> dict[str, typing.Any]:
         timestamp = datetime.utcnow().isoformat() + "Z"
-        self.move_along_route()
 
-        true_front_distance_m = round(random.uniform(1, 10), 2)
-        true_rear_distance_m = round(random.uniform(1, 5), 2)
+        # Check if we need to end emergency braking
+        with brake_lock:
+            if emergency_brake_state["is_braking"]:
+                brake_elapsed = time.time() - emergency_brake_state["brake_start_time"]
+                if brake_elapsed >= emergency_brake_state["brake_duration"]:
+                    # End emergency braking - adjust start time to account for brake duration
+                    self.start_time += emergency_brake_state["brake_duration"]
+                    emergency_brake_state["is_braking"] = False
+                    emergency_brake_state["brake_start_time"] = None
+                    emergency_brake_state["brake_duration"] = 3  # Reset to default
+                    emergency_brake_state["brake_position"] = None
+                    logger.info(f"Emergency brake ended for {self.vehicle_id}, resuming simulation")
+
+        # Get current simulation data point
+        sim_data_point = self.get_current_data_point()
+        if not sim_data_point:
+            logger.error("No simulation data available")
+            return {}
+
+        # Extract position data from simulation
+        position = sim_data_point.get("current_position", {})
+        latitude = position.get("latitude", 0.0)
+        longitude = position.get("longitude", 0.0)
+        speed_kmh = sim_data_point.get("speed_kmh", 0.0)
+
+        # If emergency braking, set speed to 0
+        with brake_lock:
+            if emergency_brake_state["is_braking"]:
+                speed_kmh = 0.0
+
+        # Get realistic sensor data based on simulation distances
+        sensor_data = self.generate_realistic_sensor_data(sim_data_point)
 
         return {
             "timestamp": timestamp,
             "vehicle_id": self.vehicle_id,
             "gps": {
-                "latitude": round(self.latitude, 6),
-                "longitude": round(self.longitude, 6),
-                "altitude_m": round(self.altitude, 2),
+                "latitude": round(latitude, 6),
+                "longitude": round(longitude, 6),
+                "altitude_m": round(10.0 + random.uniform(-0.5, 0.5), 2),  # Simulated altitude with noise
                 "accuracy_m": round(random.uniform(0.5, 5.0), 2),
             },
-            "radar": {
-                "object_distance_m": round(
-                    true_front_distance_m + random.uniform(-0.5, 0.5), 2
-                ),
-                "object_speed_kmh": round(random.uniform(-10, 50), 2),
-                "signal_strength": round(random.uniform(0.3, 1.0), 2),
-            },
-            "lidar": {
-                "point_cloud_density": random.randint(
-                    1000, 2000
-                ),  # High density = good resolution
-                "avg_reflectivity": round(random.uniform(0.4, 1.0), 2),
-                "object_count": random.randint(1, 3),
-                "front_estimate_m": round(
-                    true_front_distance_m + random.uniform(-0.2, 0.2), 2
-                ),
-                "rear_estimate_m": round(
-                    true_rear_distance_m + random.uniform(-0.2, 0.2), 2
-                ),
-            },
             "ultrasonic": {
-                "front_distance_cm": int(
-                    (true_front_distance_m + random.uniform(-0.1, 0.1)) * 100
-                ),
-                "rear_distance_cm": int(
-                    (true_rear_distance_m + random.uniform(-0.1, 0.1)) * 100
-                ),
-                "side_distance_cm": [random.randint(30, 200), random.randint(30, 200)],
+                "front_distance_cm": sensor_data["ultrasonic_front_distance_cm"],
+                "rear_distance_cm": sensor_data["ultrasonic_rear_distance_cm"],
+            },
+            "radar": {
+                "object_distance_m": sensor_data["radar_object_distance_m"],
             },
             "camera": {
-                "frame_quality": round(random.uniform(0.6, 1.0), 2),
-                "lighting_level": round(random.uniform(0.3, 1.0), 2),
-                "object_detection_count": random.randint(0, 10),
-                "front_estimate_m": round(
-                    true_front_distance_m + random.uniform(-0.3, 0.3), 2
-                ),
-                "rear_estimate_m": round(
-                    true_rear_distance_m + random.uniform(-0.3, 0.3), 2
-                ),
-            },
-            "imu": {
-                "accel_x": round(random.uniform(-3.0, 3.0), 2),
-                "accel_y": round(random.uniform(-3.0, 3.0), 2),
-                "accel_z": round(random.uniform(-9.8, -7.0), 2),
-                "gyro_x": round(random.uniform(-180, 180), 2),
-                "gyro_y": round(random.uniform(-180, 180), 2),
-                "gyro_z": round(random.uniform(-180, 180), 2),
-            },
-            "wheel_encoder": {
-                "left_ticks": random.randint(1000, 10000),
-                "right_ticks": random.randint(1000, 10000),
-            },
-            "temperature": {
-                "sensor_board_temp_c": round(random.uniform(40, 85), 2),
-                "ambient_temp_c": round(random.uniform(10, 40), 2),
-            },
-            "battery": {
-                "voltage_v": round(random.uniform(11.5, 13.0), 2),
-                "current_a": round(random.uniform(-20, 60), 2),
-                "state_of_charge_percent": round(random.uniform(30, 100), 2),
-            },
-            "can_bus": {
-                "packet_count": random.randint(1000, 5000),
-                "error_rate": round(random.uniform(0.0, 0.05), 4),
+                "front_estimate_m": sensor_data["camera_front_estimate_m"],
+                "rear_estimate_m": sensor_data["camera_rear_estimate_m"],
             },
         }
 
@@ -239,43 +262,107 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
 
 
 @app.route("/emergency-brake", methods=["POST"])
-def break_simulation() -> Response:
-    """Endpoint to stop the simulation"""
-    logging.info(f"Received request to stop simulation for vehicle {vehicle_id}")
+def emergency_brake() -> tuple[Response, int]:
+    """Endpoint to trigger emergency braking"""
+    logging.info(f"Received emergency brake request for vehicle {vehicle_id}")
 
     try:
         # Get payload
         data = request.get_json()
         if not data or "vehicle_id" not in data:
-            return jsonify({"error": "Invalid data"}), 400
+            return jsonify({"error": "Invalid data - vehicle_id required"}), 400
 
         payload_vehicle_id = data["vehicle_id"]
+
+        # Check if this request is for this vehicle
+        if payload_vehicle_id != vehicle_id:
+            return jsonify({"error": f"Vehicle ID mismatch. This vehicle is {vehicle_id}"}), 400
+
         payload_timestamp = data.get("timestamp", datetime.utcnow().isoformat() + "Z")
 
-        logging.info(f"Stopping simulation...")
+        with brake_lock:
+            if emergency_brake_state["is_braking"]:
+                return jsonify({
+                    "status": "already braking",
+                    "vehicle_id": payload_vehicle_id,
+                    "timestamp": payload_timestamp,
+                    "remaining_brake_time_sec": emergency_brake_state["brake_duration"] -
+                                                (time.time() - emergency_brake_state["brake_start_time"])
+                }), 200
+
+            # Get current position from the global simulator
+            current_data_point = None
+            with simulator_lock:
+                if global_simulator:
+                    current_data_point = global_simulator.get_current_data_point()
+
+            if not current_data_point:
+                return jsonify({"error": "Simulation not running"}), 500
+
+            # Start emergency braking
+            emergency_brake_state["is_braking"] = True
+            emergency_brake_state["brake_start_time"] = time.time()
+            brake_duration = emergency_brake_state["brake_duration"]
+            emergency_brake_state["brake_position"] = current_data_point
+
+        logging.info(f"Emergency brake activated for {brake_duration} seconds")
 
         return jsonify({
-            "status": "simulation stopped",
+            "status": "emergency brake activated",
             "vehicle_id": payload_vehicle_id,
             "timestamp": payload_timestamp,
+            "brake_duration_sec": brake_duration,
+            "message": f"Vehicle will stop for {brake_duration} seconds and then resume"
         }), 200
+
     except Exception as e:
-        logging.error(f"Error processing stop request: {e}", exc_info=True)
+        logging.error(f"Error processing emergency brake request: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/brake-status", methods=["GET"])
+def get_brake_status() -> Response:
+    """Endpoint to get current brake status"""
+    with brake_lock:
+        if emergency_brake_state["is_braking"]:
+            remaining_time = emergency_brake_state["brake_duration"] - (
+                        time.time() - emergency_brake_state["brake_start_time"])
+            return jsonify({
+                "vehicle_id": vehicle_id,
+                "is_braking": True,
+                "remaining_brake_time_sec": max(0, remaining_time),
+                "total_brake_duration_sec": emergency_brake_state["brake_duration"]
+            })
+        else:
+            return jsonify({
+                "vehicle_id": vehicle_id,
+                "is_braking": False
+            })
 
 
 @app.route("/vehicle_id", methods=["GET"])
 def get_vehicle_id() -> Response:
     """Endpoint to get the vehicle ID"""
-    return flask.jsonify({"vehicle_id": vehicle_id})
+    return jsonify({"vehicle_id": vehicle_id})
 
 
 def start_simulation() -> None:
-    simulator = VehicleSimulator(vehicle_id, SAMPLE_ROUTE)
-    while True:
-        full_data = simulator.generate_data()
-        send_data_to_endpoints(full_data)
-        time.sleep(SEND_INTERVAL)
+    global global_simulator
+
+    try:
+        with simulator_lock:
+            global_simulator = VehicleSimulator(vehicle_id)
+
+        logging.info(f"Starting JSON-based simulation for {vehicle_id}")
+
+        while True:
+            full_data = global_simulator.generate_data()
+            if full_data:  # Only send if we have valid data
+                send_data_to_endpoints(full_data)
+            time.sleep(SEND_INTERVAL)
+
+    except Exception as e:
+        logging.error(f"Error in simulation: {e}", exc_info=True)
 
 
 def start_flask() -> None:
@@ -293,7 +380,7 @@ def run_flask() -> None:
 
 
 if __name__ == "__main__":
-    logging.info("Starting modular vehicle sensor simulator...")
+    logging.info("Starting JSON-based vehicle sensor simulator...")
     run()
     run_flask()
     try:
