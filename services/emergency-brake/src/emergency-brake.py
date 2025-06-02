@@ -99,8 +99,13 @@ def brake_command_listener():
     def callback(ch, method, properties, body):
         try:
             msg = json.loads(body)
-            vehicle_id = msg.get("vehicle_id", VEHICLE_ID)
+            vehicle_id_msg = msg.get("vehicle_id", VEHICLE_ID)
             if msg.get("command") == "brake":
+                if vehicle_id_msg != VEHICLE_ID:
+                    logger.warning(
+                        f"Received brake command for {vehicle_id_msg}, but this service is for {VEHICLE_ID}. Ignoring."
+                    )
+                    return
                 process_brake_command(vehicle_id)
         except Exception as e:
             logger.error(f"Error processing brake command: {e}", exc_info=True)
