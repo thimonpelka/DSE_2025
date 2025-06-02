@@ -12,7 +12,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
-    force=True
+    force=True,
 )
 logger = logging.getLogger()
 
@@ -30,19 +30,20 @@ OUTGOING_QUEUE = "brake_status"
 connection = None
 channel = None
 
+
 def connect_to_rabbitmq():
     """Connect to RabbitMQ and return connection and channel"""
     global connection, channel
-    
+
     try:
         logger.info("Attempting to connect to RabbitMQ...")
         credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host=RABBITMQ_HOST, 
+                host=RABBITMQ_HOST,
                 credentials=credentials,
                 heartbeat=600,
-                blocked_connection_timeout=300
+                blocked_connection_timeout=300,
             )
         )
         channel = connection.channel()
@@ -56,11 +57,12 @@ def connect_to_rabbitmq():
         channel = None
         return False
 
+
 connect_attempt = connect_to_rabbitmq()
 if not connect_attempt:
-    logger.warning("Initial connection to RabbitMQ failed. Will retry on first request.")
-
-
+    logger.warning(
+        "Initial connection to RabbitMQ failed. Will retry on first request."
+    )
 
 
 # Publish brake status
@@ -68,31 +70,33 @@ def publish_brake_success(vehicle_id):
     msg = {
         "vehicle_id": vehicle_id,
         "status": "brake_applied",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
-    
+
     rabbitmq_connected = False
     if connection is None or not connection.is_open:
-        logger.warning("RabbitMQ connection not available, attempting to reconnect")
+        logger.warning(
+            "RabbitMQ connection not available, attempting to reconnect")
         rabbitmq_connected = connect_to_rabbitmq()
     else:
         rabbitmq_connected = True
-    
+
     # If we have a connection, publish the message
     if rabbitmq_connected:
         channel.basic_publish(
-        exchange='',
-        routing_key=OUTGOING_QUEUE,
-        body=json.dumps(msg))
+            exchange="", routing_key=OUTGOING_QUEUE, body=json.dumps(msg)
+        )
         logger.info(f"📤 Sent brake success for {vehicle_id} to queue.")
     else:
-        logger.error("Failed to send message - RabbitMQ connection unavailable")
-    
+        logger.error(
+            "Failed to send message - RabbitMQ connection unavailable")
+
 
 # Process brake command from queue
 def process_brake_command(vehicle_id):
     logger.warning(f"🚨 BRAKE COMMAND RECEIVED for {vehicle_id}")
     publish_brake_success(vehicle_id)
+
 
 # RabbitMQ consumer thread
 def brake_command_listener():
@@ -105,9 +109,12 @@ def brake_command_listener():
         except Exception as e:
             logger.error(f"Error processing brake command: {e}", exc_info=True)
 
-    channel.basic_consume(queue=INCOMING_QUEUE, on_message_callback=callback, auto_ack=True)
+    channel.basic_consume(
+        queue=INCOMING_QUEUE, on_message_callback=callback, auto_ack=True
+    )
     logger.info("📡 Listening for brake commands on RabbitMQ...")
     channel.start_consuming()
+
 
 # Flask route to receive processed sensor data
 @app.route("/processed-data", methods=["POST"])
@@ -122,7 +129,10 @@ def receive_processed_data():
         if vehicle_id is None or front_distance is None or front_velocity is None:
             return jsonify({"error": "Missing required fields"}), 400
 
-        logger.info(f"Received from {vehicle_id} at {timestamp}: distance={front_distance}m, Δv={front_velocity}m/s")
+        logger.info(
+            f"Received from {vehicle_id} at {timestamp}: distance={
+                front_distance}m, Δv={front_velocity}m/s"
+        )
 
         danger = False
         reason = ""
@@ -135,15 +145,22 @@ def receive_processed_data():
             reason = "WARNING: distance < 40m and closing rate > 5m/s"
 
         if danger:
-            logger.warning(f"🚨 EMERGENCY BRAKE TRIGGERED for {vehicle_id}! Reason: {reason}")
+            logger.warning(
+                f"🚨 EMERGENCY BRAKE TRIGGERED for {
+                    vehicle_id}! Reason: {reason}"
+            )
             publish_brake_success(vehicle_id)
-            return jsonify({"status": "emergency_brake_triggered", "reason": reason}), 200
+            return jsonify(
+                {"status": "emergency_brake_triggered", "reason": reason}
+            ), 200
         else:
             return jsonify({"status": "safe"}), 200
 
     except Exception as e:
-        logger.error(f"Error in emergency brake evaluation: {e}", exc_info=True)
+        logger.error(f"Error in emergency brake evaluation: {
+                     e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
 
 # Start everything
 if __name__ == "__main__":

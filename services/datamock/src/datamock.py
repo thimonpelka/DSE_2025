@@ -5,7 +5,7 @@ import random
 import threading
 import time
 import typing
-import flask
+from flask import Flask, Response
 from datetime import datetime
 import requests
 import logging
@@ -19,6 +19,8 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)  # Log to stdout
     ],
 )
+
+vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{random.randint(1000, 9999)}")
 
 logger = logging.getLogger(__name__)
 
@@ -235,26 +237,35 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
         except requests.exceptions.RequestException as e:
             logging.warning(f"Error sending to {endpoint}: {e}")
 
+
 @app.route("/break", methods=["POST"])
-def break_simulation() -> flask.Response:
+def break_simulation() -> Response:
     """Endpoint to stop the simulation"""
     logging.info("Stopping simulation...")
 
+
+@app.route("/vehicle_id", methods=["GET"])
+def get_vehicle_id() -> Response:
+    """Endpoint to get the vehicle ID"""
+    return flask.jsonify({"vehicle_id": vehicle_id})
+
+
 def start_simulation() -> None:
-    vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{
-                                random.randint(1000, 9999)}")
     simulator = VehicleSimulator(vehicle_id, SAMPLE_ROUTE)
     while True:
         full_data = simulator.generate_data()
         send_data_to_endpoints(full_data)
         time.sleep(SEND_INTERVAL)
 
+
 def start_flask() -> None:
     app.run(host="0.0.0.0", port=5000, debug=False)
+
 
 def run() -> None:
     thread = threading.Thread(target=start_simulation, daemon=True)
     thread.start()
+
 
 def run_flask() -> None:
     thread = threading.Thread(target=start_flask, daemon=True)
