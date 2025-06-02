@@ -5,7 +5,7 @@ import random
 import threading
 import time
 import typing
-from flask import Flask, Response
+from flask import Flask, Response, request, jsonify
 from datetime import datetime
 import requests
 import logging
@@ -238,10 +238,30 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
             logging.warning(f"Error sending to {endpoint}: {e}")
 
 
-@app.route("/break", methods=["POST"])
+@app.route("/emergency-brake", methods=["POST"])
 def break_simulation() -> Response:
     """Endpoint to stop the simulation"""
-    logging.info("Stopping simulation...")
+    logging.info(f"Received request to stop simulation for vehicle {vehicle_id}")
+
+    try:
+        # Get payload
+        data = request.get_json()
+        if not data or "vehicle_id" not in data:
+            return jsonify({"error": "Invalid data"}), 400
+
+        payload_vehicle_id = data["vehicle_id"]
+        payload_timestamp = data.get("timestamp", datetime.utcnow().isoformat() + "Z")
+
+        logging.info(f"Stopping simulation...")
+
+        return jsonify({
+            "status": "simulation stopped",
+            "vehicle_id": payload_vehicle_id,
+            "timestamp": payload_timestamp,
+        }), 200
+    except Exception as e:
+        logging.error(f"Error processing stop request: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route("/vehicle_id", methods=["GET"])
