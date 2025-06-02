@@ -5,6 +5,7 @@ import random
 import threading
 import time
 import typing
+import flask
 from datetime import datetime
 import requests
 import logging
@@ -13,13 +14,16 @@ import math
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
+    format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout)  # Log to stdout
-    ]
+    ],
 )
 
 logger = logging.getLogger(__name__)
+
+# Create Flask app
+app = Flask(__name__)
 
 # Configuration: Endpoint to data keys
 
@@ -75,16 +79,24 @@ ENDPOINTS = {
 SEND_INTERVAL = 2  # seconds
 EARTH_RADIUS_KM = 6371.0
 
+
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371.0  # Earth radius in km
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     d_phi = math.radians(lat2 - lat1)
     d_lambda = math.radians(lon2 - lon1)
-    a = math.sin(d_phi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(d_lambda/2)**2
+    a = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
+
 class VehicleSimulator:
-    def __init__(self, vehicle_id: str, route: list[tuple[float, float]], speed_kmh=50.0):
+    def __init__(
+        self, vehicle_id: str, route: list[tuple[float, float]], speed_kmh=50.0
+    ):
         self.vehicle_id = vehicle_id
         self.route = route
         self.speed_kmh = speed_kmh
@@ -92,8 +104,6 @@ class VehicleSimulator:
         self.latitude, self.longitude = route[0]
         self.altitude = 10.0
         self.last_update_time = time.time()
-
-        
 
     def move_along_route(self):
         current_time = time.time()
@@ -139,28 +149,44 @@ class VehicleSimulator:
                 "accuracy_m": round(random.uniform(0.5, 5.0), 2),
             },
             "radar": {
-                "object_distance_m": round(true_front_distance_m + random.uniform(-0.5, 0.5), 2),
+                "object_distance_m": round(
+                    true_front_distance_m + random.uniform(-0.5, 0.5), 2
+                ),
                 "object_speed_kmh": round(random.uniform(-10, 50), 2),
                 "signal_strength": round(random.uniform(0.3, 1.0), 2),
             },
             "lidar": {
-                "point_cloud_density": random.randint(1000, 2000),  # High density = good resolution
+                "point_cloud_density": random.randint(
+                    1000, 2000
+                ),  # High density = good resolution
                 "avg_reflectivity": round(random.uniform(0.4, 1.0), 2),
                 "object_count": random.randint(1, 3),
-                "front_estimate_m": round(true_front_distance_m + random.uniform(-0.2, 0.2), 2),
-                "rear_estimate_m": round(true_rear_distance_m + random.uniform(-0.2, 0.2), 2),
+                "front_estimate_m": round(
+                    true_front_distance_m + random.uniform(-0.2, 0.2), 2
+                ),
+                "rear_estimate_m": round(
+                    true_rear_distance_m + random.uniform(-0.2, 0.2), 2
+                ),
             },
             "ultrasonic": {
-                "front_distance_cm": int((true_front_distance_m + random.uniform(-0.1, 0.1)) * 100),
-                "rear_distance_cm": int((true_rear_distance_m + random.uniform(-0.1, 0.1)) * 100),
+                "front_distance_cm": int(
+                    (true_front_distance_m + random.uniform(-0.1, 0.1)) * 100
+                ),
+                "rear_distance_cm": int(
+                    (true_rear_distance_m + random.uniform(-0.1, 0.1)) * 100
+                ),
                 "side_distance_cm": [random.randint(30, 200), random.randint(30, 200)],
             },
             "camera": {
                 "frame_quality": round(random.uniform(0.6, 1.0), 2),
                 "lighting_level": round(random.uniform(0.3, 1.0), 2),
                 "object_detection_count": random.randint(0, 10),
-                "front_estimate_m": round(true_front_distance_m + random.uniform(-0.3, 0.3), 2),
-                "rear_estimate_m": round(true_rear_distance_m + random.uniform(-0.3, 0.3), 2),
+                "front_estimate_m": round(
+                    true_front_distance_m + random.uniform(-0.3, 0.3), 2
+                ),
+                "rear_estimate_m": round(
+                    true_rear_distance_m + random.uniform(-0.3, 0.3), 2
+                ),
             },
             "imu": {
                 "accel_x": round(random.uniform(-3.0, 3.0), 2),
@@ -209,24 +235,36 @@ def send_data_to_endpoints(full_data: dict[str, typing.Any]) -> None:
         except requests.exceptions.RequestException as e:
             logging.warning(f"Error sending to {endpoint}: {e}")
 
+@app.route("/break", methods=["POST"])
+def break_simulation() -> flask.Response:
+    """Endpoint to stop the simulation"""
+    logging.info("Stopping simulation...")
 
 def start_simulation() -> None:
-    vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{random.randint(1000,9999)}")
+    vehicle_id = os.environ.get("VEHICLE_ID", f"VEHICLE_{
+                                random.randint(1000, 9999)}")
     simulator = VehicleSimulator(vehicle_id, SAMPLE_ROUTE)
     while True:
         full_data = simulator.generate_data()
         send_data_to_endpoints(full_data)
         time.sleep(SEND_INTERVAL)
 
+def start_flask() -> None:
+    app.run(host="0.0.0.0", port=5000, debug=False)
 
 def run() -> None:
     thread = threading.Thread(target=start_simulation, daemon=True)
+    thread.start()
+
+def run_flask() -> None:
+    thread = threading.Thread(target=start_flask, daemon=True)
     thread.start()
 
 
 if __name__ == "__main__":
     logging.info("Starting modular vehicle sensor simulator...")
     run()
+    run_flask()
     try:
         while True:
             time.sleep(1)

@@ -1,19 +1,18 @@
 import json
-import os
-import time
-from flask import Flask, request, jsonify
-import pika
 import logging
+import os
 import sys
+import time
+
+import pika
+from flask import Flask, jsonify, request
 
 # Configure logging - use a single consistent method
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)  # Log to stdout explicitly
-    ],
-    force=True  # Force configuration to override any existing loggers
+    handlers=[logging.StreamHandler(sys.stdout)],  # Log to stdout explicitly
+    force=True,  # Force configuration to override any existing loggers
 )
 
 # Get the root logger
@@ -39,19 +38,20 @@ logger.info("Using queue: %s", RABBITMQ_QUEUE)
 connection = None
 channel = None
 
+
 def connect_to_rabbitmq():
     """Connect to RabbitMQ and return connection and channel"""
     global connection, channel
-    
+
     try:
         logger.info("Attempting to connect to RabbitMQ...")
         credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(
-                host=RABBITMQ_HOST, 
+                host=RABBITMQ_HOST,
                 credentials=credentials,
                 heartbeat=600,  # Increase heartbeat for better connection stability
-                blocked_connection_timeout=300
+                blocked_connection_timeout=300,
             )
         )
         channel = connection.channel()
@@ -64,25 +64,29 @@ def connect_to_rabbitmq():
         channel = None
         return False
 
+
 # Initial connection attempt
 connect_attempt = connect_to_rabbitmq()
 if not connect_attempt:
-    logger.warning("Initial connection to RabbitMQ failed. Will retry on first request.")
+    logger.warning(
+        "Initial connection to RabbitMQ failed. Will retry on first request."
+    )
+
 
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""
-    rabbitmq_status = "connected" if connection and connection.is_open else "disconnected"
-    return jsonify({
-        "status": "ok",
-        "rabbitmq": rabbitmq_status
-    })
+    rabbitmq_status = (
+        "connected" if connection and connection.is_open else "disconnected"
+    )
+    return jsonify({"status": "ok", "rabbitmq": rabbitmq_status})
+
 
 @app.route("/gps", methods=["POST"])
 def receive_gps() -> json:
     """Receive GPS data and send to RabbitMQ"""
     global connection, channel
-    
+
     logger.info("Received GPS data")
     try:
         # Validate incoming data
@@ -90,14 +94,16 @@ def receive_gps() -> json:
         if not data or "vehicle_id" not in data or "gps" not in data:
             logger.error("Invalid data received: %s", data)
             return jsonify({"error": "Invalid data"}), 400
-        
+
         # Format message
-        message = json.dumps({
-            "timestamp": data.get("timestamp", ""),
-            "vehicle_id": data["vehicle_id"],
-            "gps": data["gps"],
-        })
-        
+        message = json.dumps(
+            {
+                "timestamp": data.get("timestamp", ""),
+                "vehicle_id": data["vehicle_id"],
+                "gps": data["gps"],
+            }
+        )
+
         # Check connection status and attempt to reconnect if needed
         rabbitmq_connected = False
         if connection is None or not connection.is_open:
@@ -105,7 +111,7 @@ def receive_gps() -> json:
             rabbitmq_connected = connect_to_rabbitmq()
         else:
             rabbitmq_connected = True
-        
+
         # If we have a connection, publish the message
         if rabbitmq_connected:
             channel.basic_publish(
@@ -114,7 +120,7 @@ def receive_gps() -> json:
                 body=message,
                 properties=pika.BasicProperties(
                     delivery_mode=2,  # Make message persistent
-                    content_type='application/json'
+                    content_type="application/json",
                 ),
             )
             logger.info("Sent GPS data to RabbitMQ: %s", message)
@@ -122,21 +128,22 @@ def receive_gps() -> json:
         else:
             logger.error("Failed to send message - RabbitMQ connection unavailable")
             return jsonify({"error": "Message queue unavailable"}), 503
-            
+
     except Exception as e:
         logger.error("Error processing GPS data: %s", str(e), exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
+
 
 # Flask debug and logging settings
 if __name__ == "__main__":
     # Make sure Flask doesn't suppress logs
     app.logger.handlers = logger.handlers
     app.logger.setLevel(logger.level)
-    
+
     # Enable stdout/stderr flushing
     sys.stdout.flush()
     sys.stderr.flush()
-    
+
     # Run the app
     logger.info("Starting Flask application on 0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000, debug=False)
