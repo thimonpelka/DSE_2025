@@ -162,12 +162,12 @@ def process_message(data):
       - Location Tracker (contains 'latitude' and 'longitude' or LT payload)
       - Log messages (contains 'log_message')
     """
-    if data.get("front_velocity_mps") is not None and data.get("front_distance_m") is not None:
+    if "front_distance_m" in data and "front_velocity_mps" in data:
         logger.info(f"Processing Distance Monitor data: {data}")
         # Distance Monitor message
         vehicle = data.get("vehicle_id")
         distance = data.get("front_distance_m")
-        delta = data.get("front_velocity_mps", 0) - data.get("rear_velocity_mps", 0)
+        delta = (data.get("front_velocity_mps", 0) or 0) - (data.get("rear_velocity_mps", 0) or 0)
         save_event("distance_monitor", f"{vehicle} distance={distance}, Δ={delta}")
         trigger, reason = evaluate_rules(
             {
