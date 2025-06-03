@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: distance-monitor-{{ .Values.vehicleId }}
+  labels:
+    app: distance-monitor-{{ .Values.vehicleId }}
+    vehicle: {{ .Values.vehicleId }}
+    component: distance-monitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distance-monitor-{{ .Values.vehicleId }}
+  template:
+    metadata:
+      labels:
+        app: distance-monitor-{{ .Values.vehicleId }}
+        vehicle: {{ .Values.vehicleId }}
+        component: distance-monitor
+    spec:
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox
+          command: [ 'sh', '-c', 'until nc -z rabbitmq.{{ .Values.rabbitmq.namespace }}.svc.cluster.local 5672; do echo waiting for rabbitmq; sleep 2; done;' ]
+      containers:
+      - name: distance-monitor
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: DEPLOYMENT_MODE
+          value: "backend"
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.{{ .Values.rabbitmq.namespace }}.svc.cluster.local"
+        - name: RABBITMQ_QUEUE
+          value: "distance_data_{{ .Values.vehicleId | replace "-" "_" }}"
+        - name: RABBITMQ_USER
+          value: {{ .Values.rabbitmqCredentials.username }}
+        - name: RABBITMQ_PASS
+          value: {{ .Values.rabbitmqCredentials.password }}
+        - name: VEHICLE_ID_FILTER
+          value: {{ .Values.vehicleId }}

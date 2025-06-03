@@ -63,7 +63,7 @@ class TestEmergencyBrakeService:
             # Verify brake signal was sent to datamock
             mock_post.assert_called_once()
             call_args = mock_post.call_args
-            assert call_args[0][0] == "http://datamock-service:5000/emergency-brake"
+            assert call_args[0][0] == "http://datamock-service/emergency-brake"
 
             # Verify brake success was published
             mock_publish.assert_called_once_with(self.vehicle_id)
