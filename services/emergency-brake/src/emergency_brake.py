@@ -144,7 +144,7 @@ def brake_command_listener():
 
 def send_brake_signal_to_datamock(vehicle_id):
     """Send a brake signal to the datamock service."""
-    endpoint = "http://datamock-service:5000/emergency-brake"
+    endpoint = "http://datamock-service/emergency-brake"
     payload = {
         "vehicle_id": vehicle_id,
         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
