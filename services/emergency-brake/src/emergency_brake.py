@@ -1,13 +1,14 @@
-import sys
-import time
-import os
+import datetime
 import json
 import logging
+import os
+import sys
 import threading
+import time
+
 import pika
 import requests
-from flask import Flask, request, jsonify
-import datetime
+from flask import Flask, jsonify, request
 
 # Logger setup
 logging.basicConfig(
@@ -25,6 +26,7 @@ app = Flask(__name__)
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
+RABBITMQ_EVENT_QUEUE = os.environ.get("RABBITMQ_EVENT_QUEUE", "events")
 VEHICLE_ID = os.environ.get("VEHICLE_ID", "unknown")
 INCOMING_QUEUE = "brake_commands"
 OUTGOING_QUEUE = "brake_status"
@@ -51,6 +53,7 @@ def connect_to_rabbitmq():
         channel = connection.channel()
         channel.queue_declare(queue=INCOMING_QUEUE, durable=True)
         channel.queue_declare(queue=OUTGOING_QUEUE, durable=True)
+        channel.queue_declare(queue=RABBITMQ_EVENT_QUEUE, durable=True)
         logger.info("Successfully connected to RabbitMQ")
         return True
     except Exception as e:
@@ -59,6 +62,28 @@ def connect_to_rabbitmq():
         channel = None
         return False
 
+def publish_event(event_msg):
+    """Publish an event to the RabbitMQ event queue."""
+    if connection is None or not connection.is_open:
+        logger.warning("RabbitMQ connection not available, attempting to reconnect")
+        if not connect_to_rabbitmq():
+            logger.error("Failed to reconnect to RabbitMQ")
+            return
+
+    msg = {
+        "vehicle_id": VEHICLE_ID,
+        "log_message": f"'{event_msg}' in {VEHICLE_ID}",
+        "log_sender": "emergency_brake_service",
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+
+    try:
+        channel.basic_publish(
+            exchange="", routing_key=RABBITMQ_EVENT_QUEUE, body=json.dumps(msg)
+        )
+        logger.info(f"📤 Sent event '{event_msg}' for {VEHICLE_ID} to queue.")
+    except Exception as e:
+        logger.error(f"Failed to publish event: {e}", exc_info=True)
 
 # Publish brake status
 def publish_brake_success(vehicle_id):
@@ -70,8 +95,7 @@ def publish_brake_success(vehicle_id):
 
     rabbitmq_connected = False
     if connection is None or not connection.is_open:
-        logger.warning(
-            "RabbitMQ connection not available, attempting to reconnect")
+        logger.warning("RabbitMQ connection not available, attempting to reconnect")
         rabbitmq_connected = connect_to_rabbitmq()
     else:
         rabbitmq_connected = True
@@ -83,12 +107,12 @@ def publish_brake_success(vehicle_id):
         )
         logger.info(f"📤 Sent brake success for {vehicle_id} to queue.")
     else:
-        logger.error(
-            "Failed to send message - RabbitMQ connection unavailable")
+        logger.error("Failed to send message - RabbitMQ connection unavailable")
 
 
 # Process brake command from queue
 def process_brake_command(vehicle_id):
+    publish_event("Processing valid brake command")
     logger.warning(f"🚨 BRAKE COMMAND RECEIVED for {vehicle_id}")
     send_brake_signal_to_datamock(vehicle_id)
     publish_brake_success(vehicle_id)
@@ -98,6 +122,7 @@ def process_brake_command(vehicle_id):
 def brake_command_listener():
     def callback(ch, method, properties, body):
         try:
+            publish_event("Received brake command")
             msg = json.loads(body)
             vehicle_id_msg = msg.get("vehicle_id", VEHICLE_ID)
             if msg.get("command") == "brake":
@@ -116,6 +141,7 @@ def brake_command_listener():
     logger.info("📡 Listening for brake commands on RabbitMQ...")
     channel.start_consuming()
 
+
 def send_brake_signal_to_datamock(vehicle_id):
     """Send a brake signal to the datamock service."""
     endpoint = "http://datamock-service:5000/emergency-brake"
@@ -129,9 +155,11 @@ def send_brake_signal_to_datamock(vehicle_id):
         response = requests.post(
             endpoint, headers=headers, data=json.dumps(payload), timeout=5
         )
+        publish_event(f"Sent brake signal to {endpoint}")
         logger.info(f"[{response.status_code}] Sent brake signal to {endpoint}")
     except requests.exceptions.RequestException as e:
         logger.warning(f"Error sending brake signal to {endpoint}: {e}")
+
 
 # Flask route to receive processed sensor data
 @app.route("/processed-data", methods=["POST"])
@@ -166,9 +194,10 @@ def receive_processed_data():
             )
             send_brake_signal_to_datamock(vehicle_id)
             publish_brake_success(vehicle_id)
-            return jsonify(
-                {"status": "emergency_brake_triggered", "reason": reason}
-            ), 200
+            return (
+                jsonify({"status": "emergency_brake_triggered", "reason": reason}),
+                200,
+            )
         else:
             return jsonify({"status": "safe"}), 200
 
@@ -179,11 +208,14 @@ def receive_processed_data():
 
 # Start everything
 if __name__ == "__main__":
-    connect_attempt = connect_to_rabbitmq()
-    if not connect_attempt:
-        logger.warning(
-            "Initial connection to RabbitMQ failed. Will retry on first request."
-    )
+    connect_attempt = False
+    while not connect_attempt:
+        connect_attempt = connect_to_rabbitmq()
+        if not connect_attempt:
+            logger.warning(
+                "Initial connection to RabbitMQ failed. Will retry in 5 seconds."
+            )
+            time.sleep(5)
 
     threading.Thread(target=brake_command_listener, daemon=True).start()
     logger.info("🚘 Emergency Brake Service running on http://0.0.0.0:5000")

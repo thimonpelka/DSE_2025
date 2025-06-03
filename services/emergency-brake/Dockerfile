@@ -6,5 +6,7 @@ RUN pip install -r requirements.txt
 
 COPY src/ .
 
+RUN python -m pytest tests/
+
 EXPOSE 5000
-CMD ["python", "emergency-brake.py"]
+CMD ["python", "emergency_brake.py"]
