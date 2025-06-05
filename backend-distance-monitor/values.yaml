@@ -1,0 +1,24 @@
+vehicleId: vehicle-1
+image:
+  repository: distance-monitor-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+rabbitmq:
+  namespace: backend
+
+rabbitmqCredentials:
+  username: username
+  password: password
+
+service:
+  type: ClusterIP
+  port: 5000
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi

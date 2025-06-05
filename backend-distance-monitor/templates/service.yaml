@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: distance-monitor-{{ .Values.vehicleId }}
+  labels:
+    app: distance-monitor-{{ .Values.vehicleId }}
+    vehicle: {{ .Values.vehicleId }}
+    component: distance-monitor
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: {{ .Values.service.port }}
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: distance-monitor-{{ .Values.vehicleId }}

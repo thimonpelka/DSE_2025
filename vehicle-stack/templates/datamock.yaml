@@ -16,6 +16,10 @@ spec:
       labels:
         app: datamock
     spec:
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox
+          command: [ 'sh', '-c', 'until nc -z rabbitmq.{{ .Values.rabbitmq.namespace }}.svc.cluster.local 5672; do echo waiting for rabbitmq; sleep 2; done;' ]
       containers:
       - name: datamock
         image: "{{ .Values.services.datamock.image.repository }}:{{ .Values.services.datamock.image.tag }}"
@@ -24,6 +28,18 @@ spec:
         env:
         - name: VEHICLE_ID
           value: "{{ .Values.namespace }}"
+        - name: RABBITMQ_HOST
+          value: "rabbitmq.{{ .Values.rabbitmq.namespace }}.svc.cluster.local"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: password
 ---
 apiVersion: v1
 kind: Service
@@ -32,7 +48,7 @@ metadata:
   namespace: {{ .Values.namespace }}
 spec:
   ports:
-  - port: 5000
+  - port: 80
     targetPort: 5000
   selector:
     app: datamock

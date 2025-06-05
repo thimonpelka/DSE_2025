@@ -1,3 +1,4 @@
+
 # Detect platform
 UNAME_S := $(shell uname -s)
 # Windows detection (Git Bash or native PowerShell)
@@ -58,7 +59,8 @@ endef
 
 .PHONY: start deploy delete build-docker deploy-docker \
 		deploy-k8s build-all deploy-all delete-all \
-		$(DOCKER_SERVICES) $(K8S_SERVICES) versions
+		$(DOCKER_SERVICES) $(K8S_SERVICES) versions \
+		deploy-backend-distance-monitors delete-backend-distance-monitors
 
 # Start minikube
 start:
@@ -109,8 +111,34 @@ deploy-datamock:
 deploy-ingresses:
 	kubectl apply -f services/passenger-api-gateway/k8s/ingress.yaml
 
+# Deploy distance-monitor services for each vehicle in backend namespace
+deploy-backend-distance-monitors:
+	@echo "🔨 Building distance-monitor Docker image with tag $(VERSION_TAG)..."
+	$(DOCKER_BUILD_CMD) -t distance-monitor-service:$(VERSION_TAG) -t distance-monitor-service:latest services/distance-monitor
+	$(DOCKER_LOAD_CMD) distance-monitor-service:$(VERSION_TAG)
+	
+	@echo "🚀 Deploying distance-monitor services for each vehicle in backend namespace..."
+	@for v in $(VEHICLES); do \
+		echo "➡️  Deploying distance-monitor for $$v in backend namespace..."; \
+		helm upgrade --install distance-monitor-$$v ./backend-distance-monitor \
+			--namespace $(NAMESPACE) \
+			--set vehicleId=$$v \
+			--set image.tag=$(VERSION_TAG) \
+			--set rabbitmq.namespace=$(NAMESPACE) \
+			--set rabbitmqCredentials.username=username \
+			--set rabbitmqCredentials.password=password; \
+	done
+
+# Delete backend distance-monitor services
+delete-backend-distance-monitors:
+	@echo "🗑️  Deleting distance-monitor services from backend namespace..."
+	@for v in $(VEHICLES); do \
+		echo "➡️  Deleting distance-monitor for $$v..."; \
+		helm uninstall distance-monitor-$$v --namespace $(NAMESPACE) || echo "Release distance-monitor-$$v not found"; \
+	done
+
 # Comprehensive deploy target
-deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker vehicle-stack-deploy deploy-ingresses install-kong
+deploy-all: deploy-namespace deploy-k8s build-docker deploy-docker vehicle-stack-deploy deploy-backend-distance-monitors deploy-ingresses install-kong
 
 # Install Kong via Helm in the kong namespace
 install-kong:
@@ -151,7 +179,7 @@ delete-datamock:
 	kubectl delete -f services/datamock/k8s/deployment.yaml
 
 # Delete everything
-delete-all: delete-k8s delete-docker
+delete-all: delete-backend-distance-monitors delete-k8s delete-docker
 
 # Deploy all vehicle stacks
 vehicle-stack-deploy:

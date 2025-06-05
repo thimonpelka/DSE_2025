@@ -1,0 +1,6 @@
+apiVersion: v2
+name: backend-distance-monitor
+description: A Helm chart for distance-monitor service in backend namespace
+type: application
+version: 0.1.0
+appVersion: "1.0"
