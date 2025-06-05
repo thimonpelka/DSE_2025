@@ -186,36 +186,54 @@ def health_check():
 
 @app.route("/api/vehicle/<vehicle_id>/location", methods=["GET"])
 def get_vehicle_location(vehicle_id):
-    """Get the latest GPS location for a specific vehicle"""
+    """Get the latest GPS location for a specific vehicle with position delta"""
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row  # Return rows as dictionaries
         cursor = conn.cursor()
 
-        # Get latest location for the vehicle
+        # Get latest 2 locations for the vehicle to calculate delta
         cursor.execute(
-            "SELECT vehicle_id, latitude, longitude, timestamp FROM gps_data WHERE vehicle_id = ? ORDER BY id DESC LIMIT 1",
+            "SELECT vehicle_id, latitude, longitude, timestamp FROM gps_data WHERE vehicle_id = ? ORDER BY id DESC LIMIT 2",
             (vehicle_id,),
         )
 
-        result = cursor.fetchone()
+        results = cursor.fetchall()
         conn.close()
 
-        if result:
-            return jsonify(
-                {
-                    "vehicle_id": result["vehicle_id"],
-                    "gps": {
-                        "latitude": result["latitude"],
-                        "longitude": result["longitude"],
-                    },
-                    "timestamp": result["timestamp"],
-                }
-            )
-        else:
+        if not results:
             return jsonify(
                 {"error": f"No location data found for vehicle {vehicle_id}"}
             ), 404
+
+        current = results[0]
+        response = {
+            "vehicle_id": current["vehicle_id"],
+            "gps": {
+                "latitude": current["latitude"],
+                "longitude": current["longitude"],
+            },
+            "timestamp": current["timestamp"],
+        }
+
+        # Calculate delta if we have a previous position
+        if len(results) > 1:
+            previous = results[1]
+            lat_delta = round(current["latitude"] - previous["latitude"], 6)
+            lng_delta = round(current["longitude"] - previous["longitude"], 6)
+            
+            response["position_delta"] = {
+                "latitude": lat_delta,
+                "longitude": lng_delta
+            }
+        else:
+            # First position recorded, no delta available
+            response["position_delta"] = {
+                "latitude": 0.0,
+                "longitude": 0.0
+            }
+
+        return jsonify(response)
 
     except Exception as e:
         logger.error(f"Error retrieving vehicle location: {str(e)}", exc_info=True)
@@ -224,39 +242,62 @@ def get_vehicle_location(vehicle_id):
 
 @app.route("/api/vehicles/latest-locations", methods=["GET"])
 def get_latest_locations():
+    """Get latest locations for all vehicles with position deltas"""
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT vehicle_id, latitude, longitude, timestamp
-            FROM gps_data
-            WHERE id IN (
-                SELECT MAX(id) FROM gps_data GROUP BY vehicle_id
+        # Get all vehicle IDs
+        cursor.execute("SELECT DISTINCT vehicle_id FROM gps_data")
+        vehicle_ids = [row["vehicle_id"] for row in cursor.fetchall()]
+
+        locations = []
+        
+        for vehicle_id in vehicle_ids:
+            # Get latest 2 positions for each vehicle
+            cursor.execute(
+                "SELECT vehicle_id, latitude, longitude, timestamp FROM gps_data WHERE vehicle_id = ? ORDER BY id DESC LIMIT 2",
+                (vehicle_id,),
             )
-        """)
-        results = cursor.fetchall()
+            results = cursor.fetchall()
+            
+            if results:
+                current = results[0]
+                location = {
+                    "vehicle_id": current["vehicle_id"],
+                    "gps": {
+                        "latitude": current["latitude"],
+                        "longitude": current["longitude"],
+                    },
+                    "timestamp": current["timestamp"],
+                }
+                
+                # Calculate delta if we have a previous position
+                if len(results) > 1:
+                    previous = results[1]
+                    lat_delta = round(current["latitude"] - previous["latitude"], 6)
+                    lng_delta = round(current["longitude"] - previous["longitude"], 6)
+                    
+                    location["position_delta"] = {
+                        "latitude": lat_delta,
+                        "longitude": lng_delta
+                    }
+                else:
+                    # First position recorded, no delta available
+                    location["position_delta"] = {
+                        "latitude": 0.0,
+                        "longitude": 0.0
+                    }
+                
+                locations.append(location)
+
         conn.close()
-
-        locations = [
-            {
-                "vehicle_id": row["vehicle_id"],
-                "gps": {
-                    "latitude": row["latitude"],
-                    "longitude": row["longitude"],
-                },
-                "timestamp": row["timestamp"],
-            }
-            for row in results
-        ]
-
         return jsonify(locations)
 
     except Exception as e:
         logger.error(f"Error retrieving latest locations: {str(e)}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
-
 
 
 # Initialize the application
