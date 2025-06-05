@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: central-director
-        image: central-director-service:20250605-130011
+        image: central-director-service:20250605-131648
         ports:
         - containerPort: 5000
         env:

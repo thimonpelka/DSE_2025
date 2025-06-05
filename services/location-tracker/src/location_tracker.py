@@ -3,7 +3,7 @@ import os
 import time
 import threading
 import sqlite3
-from datetime import datetime
+import datetime
 from flask import Flask, jsonify, request
 import pika
 import logging
@@ -90,15 +90,20 @@ def store_gps_data(data):
 
         # Use current timestamp if none provided
         if not timestamp:
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = datetime.datetime.now(datetime.UTC).isoformat()
 
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
         cursor.execute(
             "INSERT INTO gps_data (vehicle_id, latitude, longitude, timestamp, created_at) VALUES (?, ?, ?, ?, ?)",
-            (vehicle_id, latitude, longitude,
-             timestamp, datetime.utcnow().isoformat()),
+            (
+                vehicle_id,
+                latitude,
+                longitude,
+                timestamp,
+                datetime.datetime.now(datetime.UTC).isoformat(),
+            ),
         )
 
         conn.commit()
@@ -221,17 +226,12 @@ def get_vehicle_location(vehicle_id):
             previous = results[1]
             lat_delta = round(current["latitude"] - previous["latitude"], 6)
             lng_delta = round(current["longitude"] - previous["longitude"], 6)
-            
+
             response["position_delta"] = {
-                "latitude": lat_delta,
-                "longitude": lng_delta
-            }
+                "latitude": lat_delta, "longitude": lng_delta}
         else:
             # First position recorded, no delta available
-            response["position_delta"] = {
-                "latitude": 0.0,
-                "longitude": 0.0
-            }
+            response["position_delta"] = {"latitude": 0.0, "longitude": 0.0}
 
         return jsonify(response)
 
@@ -253,7 +253,7 @@ def get_latest_locations():
         vehicle_ids = [row["vehicle_id"] for row in cursor.fetchall()]
 
         locations = []
-        
+
         for vehicle_id in vehicle_ids:
             # Get latest 2 positions for each vehicle
             cursor.execute(
@@ -261,7 +261,7 @@ def get_latest_locations():
                 (vehicle_id,),
             )
             results = cursor.fetchall()
-            
+
             if results:
                 current = results[0]
                 location = {
@@ -272,24 +272,24 @@ def get_latest_locations():
                     },
                     "timestamp": current["timestamp"],
                 }
-                
+
                 # Calculate delta if we have a previous position
                 if len(results) > 1:
                     previous = results[1]
-                    lat_delta = round(current["latitude"] - previous["latitude"], 6)
-                    lng_delta = round(current["longitude"] - previous["longitude"], 6)
-                    
+                    lat_delta = round(
+                        current["latitude"] - previous["latitude"], 6)
+                    lng_delta = round(
+                        current["longitude"] - previous["longitude"], 6)
+
                     location["position_delta"] = {
                         "latitude": lat_delta,
-                        "longitude": lng_delta
+                        "longitude": lng_delta,
                     }
                 else:
                     # First position recorded, no delta available
                     location["position_delta"] = {
-                        "latitude": 0.0,
-                        "longitude": 0.0
-                    }
-                
+                        "latitude": 0.0, "longitude": 0.0}
+
                 locations.append(location)
 
         conn.close()

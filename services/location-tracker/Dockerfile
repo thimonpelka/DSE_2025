@@ -9,6 +9,6 @@ COPY src/ .
 RUN mkdir -p /data
 VOLUME ["/data"]
 
-ENV PYTHONUNBUFFERED=1
+RUN python -m pytest tests/
 
-CMD ["python", "location-tracker.py"]
+CMD ["python", "location_tracker.py"]
