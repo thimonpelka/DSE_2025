@@ -25,7 +25,7 @@ app = Flask(__name__)
 logger.info("Starting location sender service")
 
 # RabbitMQ setup
-RABBITMQ_HOST = "rabbitmq" # os.environ.get("RABBITMQ_HOST", "rabbitmq")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq.backend.svc.cluster.local")
 RABBITMQ_QUEUE = "gps_data"
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
