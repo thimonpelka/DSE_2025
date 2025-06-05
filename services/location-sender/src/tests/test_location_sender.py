@@ -7,6 +7,8 @@ from location_sender import app
 
 @pytest.fixture
 def client():
+    # connect_to_rabbitmq()  # Ensure RabbitMQ connection is established
+
     app.config["TESTING"] = True
     return app.test_client()
 

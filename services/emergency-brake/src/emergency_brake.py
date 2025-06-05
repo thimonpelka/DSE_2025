@@ -23,10 +23,11 @@ logger = logging.getLogger()
 app = Flask(__name__)
 
 # Environment variables
-RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "localhost")
+RABBITMQ_HOST = "rabbitmq" #os.environ.get("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
 RABBITMQ_EVENT_QUEUE = os.environ.get("RABBITMQ_EVENT_QUEUE", "events")
+RABBITMQ_RECONNECT_DELAY = 5  # seconds between reconnection attempts
 VEHICLE_ID = os.environ.get("VEHICLE_ID", "unknown")
 INCOMING_QUEUE = "brake_commands"
 OUTGOING_QUEUE = "brake_status"
@@ -41,6 +42,7 @@ def connect_to_rabbitmq():
 
     try:
         logger.info("Attempting to connect to RabbitMQ...")
+        print(f"Connecting to RabbitMQ at {RABBITMQ_HOST} with user {RABBITMQ_USER} and password {RABBITMQ_PASS}")
         credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
         connection = pika.BlockingConnection(
             pika.ConnectionParameters(
@@ -215,7 +217,7 @@ if __name__ == "__main__":
             logger.warning(
                 "Initial connection to RabbitMQ failed. Will retry in 5 seconds."
             )
-            time.sleep(5)
+            time.sleep(RABBITMQ_RECONNECT_DELAY)
 
     threading.Thread(target=brake_command_listener, daemon=True).start()
     logger.info("🚘 Emergency Brake Service running on http://0.0.0.0:5000")

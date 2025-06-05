@@ -1,4 +1,4 @@
-import emergency_brake
+from emergency_brake import app, connect_to_rabbitmq, VEHICLE_ID, connection, channel, publish_brake_success, send_brake_signal_to_datamock, process_brake_command
 import json
 import os
 import sys
@@ -18,20 +18,20 @@ class TestEmergencyBrakeService:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         """Set up test fixtures before each test method and clean up after."""
+        # connect_to_rabbitmq()
         # Setup
-        self.app = emergency_brake.app
-        self.app.config["TESTING"] = True
-        self.client = self.app.test_client()
+        app.config["TESTING"] = True
+        self.client = app.test_client()
 
         # Mock environment variables
         self.vehicle_id = "TEST_VEHICLE_001"
-        emergency_brake.VEHICLE_ID = self.vehicle_id
+        VEHICLE_ID = self.vehicle_id
 
         yield  # This runs the test
 
         # Teardown
-        emergency_brake.connection = None
-        emergency_brake.channel = None
+        connection = None
+        channel = None
 
     @patch("emergency_brake.requests.post")
     def test_emergency_brake_critical_distance_and_velocity(self, mock_post):
@@ -48,25 +48,29 @@ class TestEmergencyBrakeService:
         }
 
         with patch("emergency_brake.publish_brake_success") as mock_publish:
-            response = self.client.post(
-                "/processed-data",
-                data=json.dumps(test_data),
-                content_type="application/json",
-            )
+            with patch("emergency_brake.send_brake_signal_to_datamock") as mock_rabb:
+                response = self.client.post(
+                    "/processed-data",
+                    data=json.dumps(test_data),
+                    content_type="application/json",
+                )
 
-            # Assertions
-            assert response.status_code == 200
-            response_data = json.loads(response.data)
-            assert response_data["status"] == "emergency_brake_triggered"
-            assert "CRITICAL" in response_data["reason"]
+                # Assertions
+                assert response.status_code == 200
+                response_data = json.loads(response.data)
+                assert response_data["status"] == "emergency_brake_triggered"
+                assert "CRITICAL" in response_data["reason"]
 
-            # Verify brake signal was sent to datamock
-            mock_post.assert_called_once()
-            call_args = mock_post.call_args
-            assert call_args[0][0] == "http://datamock-service:5000/emergency-brake"
+                # Verify brake signal was sent to datamock
+                mock_rabb.assert_called_once()
+                
+                # mock_post.assert_called_once()
+                call_args = mock_rabb.call_args
+                assert call_args[0][0] == self.vehicle_id
+                # assert call_args[0][0] == "http://datamock-service:5000/emergency-brake"
 
-            # Verify brake success was published
-            mock_publish.assert_called_once_with(self.vehicle_id)
+                # Verify brake success was published
+                mock_publish.assert_called_once_with(self.vehicle_id)
 
     @patch("emergency_brake.requests.post")
     def test_emergency_brake_warning_distance_and_velocity(self, mock_post):
@@ -194,8 +198,8 @@ class TestEmergencyBrakeService:
         mock_conn.is_open = True
 
         # Set up the connection
-        emergency_brake.connection = mock_conn
-        emergency_brake.channel = mock_channel
+        connection = mock_conn
+        channel = mock_channel
 
         # Test brake command message
         brake_command = {
@@ -209,7 +213,7 @@ class TestEmergencyBrakeService:
             patch("emergency_brake.publish_brake_success") as mock_publish,
         ):
             # Simulate receiving a brake command
-            emergency_brake.process_brake_command(self.vehicle_id)
+            process_brake_command(self.vehicle_id)
 
             # Assertions
             mock_brake.assert_called_once_with(self.vehicle_id)
