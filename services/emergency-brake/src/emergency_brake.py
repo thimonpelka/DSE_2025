@@ -23,7 +23,7 @@ logger = logging.getLogger()
 app = Flask(__name__)
 
 # Environment variables
-RABBITMQ_HOST = "rabbitmq" #os.environ.get("RABBITMQ_HOST", "rabbitmq")
+RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
 RABBITMQ_EVENT_QUEUE = os.environ.get("RABBITMQ_EVENT_QUEUE", "events")

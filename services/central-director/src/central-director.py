@@ -60,14 +60,22 @@ def init_rabbitmq():
         global connection, channel
         logger.info("Connecting to RabbitMQ...")
         creds = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-        params = pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=creds, heartbeat=600, blocked_connection_timeout=300)
+        params = pika.ConnectionParameters(
+            host=RABBITMQ_HOST,
+            credentials=creds,
+            heartbeat=600,
+            blocked_connection_timeout=300,
+        )
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
         channel.queue_declare(queue=RABBITMQ_DM_QUEUE, durable=True)
         channel.queue_declare(queue=RABBITMQ_EVENT_QUEUE, durable=True)
         channel.basic_qos(prefetch_count=1)
-        channel.basic_consume(queue=RABBITMQ_DM_QUEUE, on_message_callback=dm_callback)
-        channel.basic_consume(queue=RABBITMQ_EVENT_QUEUE, on_message_callback=event_callback)
+        channel.basic_consume(queue=RABBITMQ_DM_QUEUE,
+                              on_message_callback=dm_callback)
+        channel.basic_consume(
+            queue=RABBITMQ_EVENT_QUEUE, on_message_callback=event_callback
+        )
         logger.info("RabbitMQ connection established")
         channel.start_consuming()
         return True
@@ -135,7 +143,7 @@ def trigger_emergency_break(vehicle_id, reason):
     try:
         global connection, channel
         if channel is not None:
-        # Construct and publish the brake message
+            # Construct and publish the brake message
             msg = {
                 "command": "break",
                 "vehicle_id": vehicle_id,
@@ -146,7 +154,9 @@ def trigger_emergency_break(vehicle_id, reason):
                 exchange="",
                 routing_key=RABBITMQ_EB_QUEUE,
                 body=json.dumps(msg),
-                properties=pika.BasicProperties(delivery_mode=2),  # make message persistent
+                properties=pika.BasicProperties(
+                    delivery_mode=2
+                ),  # make message persistent
             )
             logger.info(f"Published emergency brake for {vehicle_id}: {reason}")
             # Save event to database
@@ -167,7 +177,9 @@ def process_message(data):
         # Distance Monitor message
         vehicle = data.get("vehicle_id")
         distance = data.get("front_distance_m")
-        delta = (data.get("front_velocity_mps", 0) or 0) - (data.get("rear_velocity_mps", 0) or 0)
+        delta = (data.get("front_velocity_mps", 0) or 0) - (
+            data.get("rear_velocity_mps", 0) or 0
+        )
         save_event("distance_monitor", f"{vehicle} distance={distance}, Δ={delta}")
         trigger, reason = evaluate_rules(
             {
@@ -214,18 +226,53 @@ def health_check():
 
 @app.route("/api/logs", methods=["GET"])
 def get_events():
-    """Get recent events."""
+    """Get recent events with pagination."""
+    # Get pagination parameters
+    page = request.args.get("page", 1, type=int)
     limit = request.args.get("limit", 100, type=int)
+
+    # Ensure page is at least 1
+    page = max(1, page)
+
+    # Calculate offset
+    offset = (page - 1) * limit
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # Get total count for pagination metadata
+    cursor.execute("SELECT COUNT(*) FROM events")
+    total_count = cursor.fetchone()[0]
+
+    # Get paginated results
     cursor.execute(
-        "SELECT timestamp, event_type, details FROM events ORDER BY id DESC LIMIT ?",
-        (limit,),
+        "SELECT timestamp, event_type, details FROM events ORDER BY id DESC LIMIT ? OFFSET ?",
+        (limit, offset),
     )
     rows = cursor.fetchall()
     conn.close()
-    events = [{"timestamp": ts, "type": et, "details": d} for ts, et, d in rows]
-    return jsonify(events), 200
+
+    events = [{"timestamp": ts, "type": et, "details": d}
+              for ts, et, d in rows]
+
+    # Calculate pagination metadata
+    total_pages = (total_count + limit - 1) // limit  # Ceiling division
+    has_next = page < total_pages
+    has_prev = page > 1
+
+    response = {
+        "events": events,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_prev": has_prev,
+        },
+    }
+
+    return jsonify(response), 200
 
 
 if __name__ == "__main__":
