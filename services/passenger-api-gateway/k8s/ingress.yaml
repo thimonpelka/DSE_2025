@@ -5,7 +5,7 @@ metadata:
   namespace: backend
   annotations:
     kubernetes.io/ingress.class: kong
-    konghq.com/strip-path: "true"   # strip /api from request path when forwarding
+    konghq.com/strip-path: "true"   # strip path prefix when forwarding
 spec:
   ingressClassName: kong
   rules:
@@ -18,7 +18,6 @@ spec:
             name: location-tracker
             port:
               number: 80
-      paths:
       - path: /cd
         pathType: Prefix
         backend:

@@ -1,4 +1,5 @@
 import os
+import threading
 import json
 import time
 import sqlite3
@@ -15,6 +16,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
     force=True,
 )
+logging.getLogger("pika").setLevel(logging.INFO)
 logger = logging.getLogger()
 
 # Configuration via environment variables
@@ -77,7 +79,6 @@ def init_rabbitmq():
             queue=RABBITMQ_EVENT_QUEUE, on_message_callback=event_callback
         )
         logger.info("RabbitMQ connection established")
-        channel.start_consuming()
         return True
     except Exception as e:
         logger.error(f"Failed to connect to RabbitMQ: {e}")
@@ -86,6 +87,7 @@ def init_rabbitmq():
 
 def dm_callback(ch, method, properties, body):
     """Callback for processing Distance Monitor messages."""
+    logger.info(f"Received DM message: {body}")
     try:
         data = json.loads(body)
         process_message(data)
@@ -97,6 +99,7 @@ def dm_callback(ch, method, properties, body):
 
 def event_callback(ch, method, properties, body):
     """Callback for processing generic event messages."""
+    logger.info(f"Received event message: {body}")
     try:
         data = json.loads(body)
         process_message(data)
@@ -275,11 +278,25 @@ def get_events():
     return jsonify(response), 200
 
 
+def start_rabbit_consuming():
+    logger.info("Starting RabbitMQ consumer thread")
+    channel.start_consuming()
+
 if __name__ == "__main__":
     init_db()
     # Start RabbitMQ consumer
     if not init_rabbitmq():
         logger.error("Failed to initialize RabbitMQ, exiting")
         sys.exit(1)
+
+    # Start RabbitMQ consumer in a separate thread
+    consumer_thread = threading.Thread(target=start_rabbit_consuming, daemon=True)
+    consumer_thread.start()
+
+    # Enable stdout/stderr flushing
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     # Run Flask app
+    logger.info("Starting Central Director Flask app")
     app.run(host="0.0.0.0", port=5000)

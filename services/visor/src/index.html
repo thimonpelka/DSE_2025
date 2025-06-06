@@ -100,260 +100,6 @@
   <body
     class="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white"
   >
-    <div x-data="vehicleApp()" class="container mx-auto p-4">
-      <!-- Header -->
-      <div class="mb-6">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center space-x-3">
-            <div
-              class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center"
-            >
-              <span class="text-2xl">🚗</span>
-            </div>
-            <div>
-              <h1
-                class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
-              >
-                Vehicle Fleet Dashboard
-              </h1>
-              <p class="text-slate-400">
-                Real-time vehicle simulation monitoring
-              </p>
-            </div>
-          </div>
-          <div class="flex items-center space-x-2">
-            <div
-              class="status-indicator"
-              :class="isOnline ? 'status-online' : 'status-offline'"
-            ></div>
-            <span
-              class="text-sm"
-              x-text="isOnline ? 'Connected' : 'Disconnected'"
-            ></span>
-          </div>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div class="stat-card rounded-xl p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-slate-400 text-sm">Active Vehicles</p>
-                <p class="text-2xl font-bold" x-text="stats.activeVehicles"></p>
-              </div>
-              <div
-                class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center"
-              >
-                <span class="text-green-400">🚙</span>
-              </div>
-            </div>
-          </div>
-          <div></div>
-          <div></div>
-
-          <!-- <div class="stat-card rounded-xl p-4"> -->
-          <!-- 	<div class="flex items-center justify-between"> -->
-          <!-- 		<div> -->
-          <!-- 			<p class="text-slate-400 text-sm">Avg Speed</p> -->
-          <!-- 			<p class="text-2xl font-bold" x-text="stats.avgSpeed + ' km/h'"></p> -->
-          <!-- 		</div> -->
-          <!-- 		<div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center"> -->
-          <!-- 			<span class="text-blue-400">⚡</span> -->
-          <!-- 		</div> -->
-          <!-- 	</div> -->
-          <!-- </div> -->
-          <!---->
-          <!-- <div class="stat-card rounded-xl p-4"> -->
-          <!-- 	<div class="flex items-center justify-between"> -->
-          <!-- 		<div> -->
-          <!-- 			<p class="text-slate-400 text-sm">Total Distance</p> -->
-          <!-- 			<p class="text-2xl font-bold" x-text="stats.totalDistance + ' km'"></p> -->
-          <!-- 		</div> -->
-          <!-- 		<div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"> -->
-          <!-- 			<span class="text-purple-400">📍</span> -->
-          <!-- 		</div> -->
-          <!-- 	</div> -->
-          <!-- </div> -->
-
-          <div class="stat-card rounded-xl p-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-slate-400 text-sm">Emergency Brakes</p>
-                <p
-                  class="text-2xl font-bold"
-                  x-text="stats.emergencyBrakes"
-                  :class="stats.emergencyBrakes > 0 ? 'text-red-400' : ''"
-                ></p>
-              </div>
-              <div
-                class="w-10 h-10 rounded-lg flex items-center justify-center"
-                :class="stats.emergencyBrakes > 0 ? 'bg-red-500/20' : 'bg-orange-500/20'"
-              >
-                <span
-                  :class="stats.emergencyBrakes > 0 ? 'text-red-400' : 'text-orange-400'"
-                  x-text="stats.emergencyBrakes > 0 ? '⚠️' : '🛡️'"
-                ></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- Map -->
-        <div class="lg:col-span-3">
-          <div class="glass-effect rounded-2xl p-1">
-            <div id="map" class="h-[70vh]"></div>
-          </div>
-        </div>
-
-        <!-- Vehicle List -->
-        <div class="lg:col-span-1">
-          <div class="glass-effect rounded-2xl p-6 h-[70vh] overflow-hidden">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-lg font-semibold">Vehicle List</h3>
-              <span
-                class="text-sm text-slate-400"
-                x-text="'Last updated: ' + lastUpdate"
-              ></span>
-            </div>
-
-            <div class="space-y-3 overflow-y-auto h-full pb-16">
-              <template x-for="vehicle in vehicles" :key="vehicle.vehicle_id">
-                <div
-                  class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600/50 transition-all cursor-pointer"
-                  @click="focusVehicle(vehicle)"
-                  :class="vehicle.emergency_brake ? 'ring-2 ring-red-500/50 bg-red-900/20' : ''"
-                >
-                  <div class="flex items-center justify-between mb-2">
-                    <span
-                      class="font-medium text-sm"
-                      x-text="vehicle.vehicle_id"
-                    ></span>
-                    <div class="flex items-center space-x-2">
-                      <span
-                        x-show="vehicle.emergency_brake"
-                        class="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded animate-pulse"
-                        >⚠️ BRAKE</span
-                      >
-                      <span
-                        class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded"
-                        >Active</span
-                      >
-                    </div>
-                  </div>
-                  <div class="text-xs text-slate-400 space-y-1">
-                    <div class="grid grid-cols-2 gap-2">
-                      <div>
-                        📍
-                        <span x-text="vehicle.gps.latitude.toFixed(4)"></span>
-                      </div>
-                      <div>
-                        <span x-text="vehicle.gps.longitude.toFixed(4)"></span>
-                      </div>
-                    </div>
-                    <div>
-                      ⚡
-                      <span
-                        x-text="(Math.random() * 60 + 20).toFixed(1) + ' km/h'"
-                      ></span>
-                    </div>
-
-                    <!-- Sensor Data -->
-                    <div class="pt-2 border-t border-slate-700/50">
-                      <div class="text-xs text-slate-500 mb-1">Sensors</div>
-                      <div class="grid grid-cols-2 gap-1">
-                        <div>
-                          🔍 Front:
-                          <span
-                            x-text="vehicle.sensors?.front_distance?.toFixed(1) || '0.0'"
-                            class="text-blue-400"
-                          ></span
-                          >m
-                        </div>
-                        <div>
-                          🔍 Rear:
-                          <span
-                            x-text="vehicle.sensors?.rear_distance?.toFixed(1) || '0.0'"
-                            class="text-purple-400"
-                          ></span
-                          >m
-                        </div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-1 mt-1">
-                        <div class="text-xs">
-                          Δ
-                          <span
-                            x-text="vehicle.sensors?.front_distance_change?.toFixed(2) || '0.0'"
-                            :class="(vehicle.sensors?.front_distance_change || 0) < 0 ? 'text-red-400' : 'text-green-400'"
-                          ></span>
-                        </div>
-                        <div class="text-xs">
-                          Δ
-                          <span
-                            x-text="vehicle.sensors?.rear_distance_change?.toFixed(2) || '0.0'"
-                            :class="(vehicle.sensors?.rear_distance_change || 0) < 0 ? 'text-red-400' : 'text-green-400'"
-                          ></span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Position Delta -->
-                    <div class="pt-2 border-t border-slate-700/50">
-                      <div class="text-xs text-slate-500 mb-1">
-                        GPS Position Δ
-                      </div>
-                      <div class="grid grid-cols-2 gap-1">
-                        <div>
-                          Lat:
-                          <span
-                            x-text="vehicle.position_delta.latitude.toFixed(5)"
-                          ></span>
-                        </div>
-                        <div>
-                          Lng:
-                          <span
-                            x-text="vehicle.position_delta.longitude.toFixed(5)"
-                          ></span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div x-data="getEvents()" class="container mx-auto p-4">
-      <!-- Events Section -->
-      <div class="glass-effect rounded-2xl p-6 mt-6">
-        <h3 class="text-lg font-semibold mb-4">Recent Events</h3>
-        <div class="space-y-3 overflow-y-auto h-[50vh]">
-          <template x-for="event in events" :key="event.id">
-            <div
-              class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
-            >
-              <div class="flex items justify-between mb-2">
-                <span
-                  class="text-xs text-slate-400"
-                  x-text="new Date(event.timestamp).toLocaleTimeString()"
-                ></span>
-              </div>
-              <div class="text-xs text-slate-400 space-y-1">
-                <div class="grid grid-cols-2 gap-2">
-                  <div>Event Type: <span x-text="event.type"></span></div>
-                </div>
-                <div>Details: <span x-text="event.details"></span></div>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
       function getEvents() {
@@ -382,27 +128,10 @@
               }
 
               const data = await response.json();
+              console.log("Fetched events:", data);
 
-              // Handle both old format (just array) and new format (with pagination)
-              if (Array.isArray(data)) {
-                // Old API format - just an array of events
-                this.events = data;
-                this.pagination = {
-                  page: 1,
-                  limit: data.length,
-                  total_count: data.length,
-                  total_pages: 1,
-                  has_next: false,
-                  has_previous: false,
-                };
-              } else if (data.events && data.pagination) {
-                // New API format - with pagination
-                this.events = data.events;
-                this.pagination = data.pagination;
-              } else {
-                console.warn("Unexpected API response format:", data);
-                this.events = [];
-              }
+              this.events = data.events;
+              this.pagination = data.pagination;
             } catch (err) {
               console.error("Error loading events:", err);
               // Don't clear existing events on error, just log it
@@ -652,5 +381,258 @@
         };
       }
     </script>
+    <div x-data="vehicleApp()" class="container mx-auto p-4">
+      <!-- Header -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <div
+              class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center"
+            >
+              <span class="text-2xl">🚗</span>
+            </div>
+            <div>
+              <h1
+                class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent"
+              >
+                Vehicle Fleet Dashboard
+              </h1>
+              <p class="text-slate-400">
+                Real-time vehicle simulation monitoring
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <div
+              class="status-indicator"
+              :class="isOnline ? 'status-online' : 'status-offline'"
+            ></div>
+            <span
+              class="text-sm"
+              x-text="isOnline ? 'Connected' : 'Disconnected'"
+            ></span>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="stat-card rounded-xl p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-slate-400 text-sm">Active Vehicles</p>
+                <p class="text-2xl font-bold" x-text="stats.activeVehicles"></p>
+              </div>
+              <div
+                class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center"
+              >
+                <span class="text-green-400">🚙</span>
+              </div>
+            </div>
+          </div>
+          <div></div>
+          <div></div>
+
+          <!-- <div class="stat-card rounded-xl p-4"> -->
+          <!-- 	<div class="flex items-center justify-between"> -->
+          <!-- 		<div> -->
+          <!-- 			<p class="text-slate-400 text-sm">Avg Speed</p> -->
+          <!-- 			<p class="text-2xl font-bold" x-text="stats.avgSpeed + ' km/h'"></p> -->
+          <!-- 		</div> -->
+          <!-- 		<div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center"> -->
+          <!-- 			<span class="text-blue-400">⚡</span> -->
+          <!-- 		</div> -->
+          <!-- 	</div> -->
+          <!-- </div> -->
+          <!---->
+          <!-- <div class="stat-card rounded-xl p-4"> -->
+          <!-- 	<div class="flex items-center justify-between"> -->
+          <!-- 		<div> -->
+          <!-- 			<p class="text-slate-400 text-sm">Total Distance</p> -->
+          <!-- 			<p class="text-2xl font-bold" x-text="stats.totalDistance + ' km'"></p> -->
+          <!-- 		</div> -->
+          <!-- 		<div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"> -->
+          <!-- 			<span class="text-purple-400">📍</span> -->
+          <!-- 		</div> -->
+          <!-- 	</div> -->
+          <!-- </div> -->
+
+          <div class="stat-card rounded-xl p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-slate-400 text-sm">Emergency Brakes</p>
+                <p
+                  class="text-2xl font-bold"
+                  x-text="stats.emergencyBrakes"
+                  :class="stats.emergencyBrakes > 0 ? 'text-red-400' : ''"
+                ></p>
+              </div>
+              <div
+                class="w-10 h-10 rounded-lg flex items-center justify-center"
+                :class="stats.emergencyBrakes > 0 ? 'bg-red-500/20' : 'bg-orange-500/20'"
+              >
+                <span
+                  :class="stats.emergencyBrakes > 0 ? 'text-red-400' : 'text-orange-400'"
+                  x-text="stats.emergencyBrakes > 0 ? '⚠️' : '🛡️'"
+                ></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Map -->
+        <div class="lg:col-span-3">
+          <div class="glass-effect rounded-2xl p-1">
+            <div id="map" class="h-[70vh]"></div>
+          </div>
+        </div>
+
+        <!-- Vehicle List -->
+        <div class="lg:col-span-1">
+          <div class="glass-effect rounded-2xl p-6 h-[70vh] overflow-hidden">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-semibold">Vehicle List</h3>
+              <span
+                class="text-sm text-slate-400"
+                x-text="'Last updated: ' + lastUpdate"
+              ></span>
+            </div>
+
+            <div class="space-y-3 overflow-y-auto h-full pb-16">
+              <template x-for="vehicle in vehicles" :key="vehicle.vehicle_id">
+                <div
+                  class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 hover:border-slate-600/50 transition-all cursor-pointer"
+                  @click="focusVehicle(vehicle)"
+                  :class="vehicle.emergency_brake ? 'ring-2 ring-red-500/50 bg-red-900/20' : ''"
+                >
+                  <div class="flex items-center justify-between mb-2">
+                    <span
+                      class="font-medium text-sm"
+                      x-text="vehicle.vehicle_id"
+                    ></span>
+                    <div class="flex items-center space-x-2">
+                      <span
+                        x-show="vehicle.emergency_brake"
+                        class="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded animate-pulse"
+                        >⚠️ BRAKE</span
+                      >
+                      <span
+                        class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded"
+                        >Active</span
+                      >
+                    </div>
+                  </div>
+                  <div class="text-xs text-slate-400 space-y-1">
+                    <div class="grid grid-cols-2 gap-2">
+                      <div>
+                        📍
+                        <span x-text="vehicle.gps.latitude.toFixed(4)"></span>
+                      </div>
+                      <div>
+                        <span x-text="vehicle.gps.longitude.toFixed(4)"></span>
+                      </div>
+                    </div>
+                    <div>
+                      ⚡
+                      <span
+                        x-text="(Math.random() * 60 + 20).toFixed(1) + ' km/h'"
+                      ></span>
+                    </div>
+
+                    <!-- Sensor Data -->
+                    <div class="pt-2 border-t border-slate-700/50">
+                      <div class="text-xs text-slate-500 mb-1">Sensors</div>
+                      <div class="grid grid-cols-2 gap-1">
+                        <div>
+                          🔍 Front:
+                          <span
+                            x-text="vehicle.sensors?.front_distance?.toFixed(1) || '0.0'"
+                            class="text-blue-400"
+                          ></span
+                          >m
+                        </div>
+                        <div>
+                          🔍 Rear:
+                          <span
+                            x-text="vehicle.sensors?.rear_distance?.toFixed(1) || '0.0'"
+                            class="text-purple-400"
+                          ></span
+                          >m
+                        </div>
+                      </div>
+                      <div class="grid grid-cols-2 gap-1 mt-1">
+                        <div class="text-xs">
+                          Δ
+                          <span
+                            x-text="vehicle.sensors?.front_distance_change?.toFixed(2) || '0.0'"
+                            :class="(vehicle.sensors?.front_distance_change || 0) < 0 ? 'text-red-400' : 'text-green-400'"
+                          ></span>
+                        </div>
+                        <div class="text-xs">
+                          Δ
+                          <span
+                            x-text="vehicle.sensors?.rear_distance_change?.toFixed(2) || '0.0'"
+                            :class="(vehicle.sensors?.rear_distance_change || 0) < 0 ? 'text-red-400' : 'text-green-400'"
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Position Delta -->
+                    <div class="pt-2 border-t border-slate-700/50">
+                      <div class="text-xs text-slate-500 mb-1">
+                        GPS Position Δ
+                      </div>
+                      <div class="grid grid-cols-2 gap-1">
+                        <div>
+                          Lat:
+                          <span
+                            x-text="vehicle.position_delta.latitude.toFixed(5)"
+                          ></span>
+                        </div>
+                        <div>
+                          Lng:
+                          <span
+                            x-text="vehicle.position_delta.longitude.toFixed(5)"
+                          ></span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div x-data="getEvents()" class="container mx-auto p-4">
+      <!-- Events Section -->
+      <div class="glass-effect rounded-2xl p-6 mt-6">
+        <h3 class="text-lg font-semibold mb-4">Recent Events</h3>
+        <div class="space-y-3 overflow-y-auto h-[50vh]">
+          <template x-for="event in events">
+            <div
+              class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50"
+            >
+              <div class="flex items justify-between mb-2">
+                <span
+                  class="text-xs text-slate-400"
+                  x-text="new Date(event.timestamp).toLocaleTimeString()"
+                ></span>
+              </div>
+              <div class="text-xs text-slate-400 space-y-1">
+                <div class="grid grid-cols-2 gap-2">
+                  <div>Sender: <span x-text="event.type"></span></div>
+                </div>
+                <div>Details: <span x-text="event.details"></span></div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

@@ -174,6 +174,9 @@ def receive_processed_data():
         front_velocity = data.get("front_velocity_mps")
 
         if vehicle_id is None or front_distance is None or front_velocity is None:
+            logger.warning(
+                f"Received incomplete data from {vehicle_id}: {data}"
+            )
             return jsonify({"error": "Missing required fields"}), 400
 
         logger.info(
@@ -220,5 +223,6 @@ if __name__ == "__main__":
             time.sleep(RABBITMQ_RECONNECT_DELAY)
 
     threading.Thread(target=brake_command_listener, daemon=True).start()
+
     logger.info("🚘 Emergency Brake Service running on http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
