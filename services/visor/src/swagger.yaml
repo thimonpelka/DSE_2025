@@ -1,0 +1,137 @@
+openapi: 3.0.3
+info:
+  title: Vehicle Monitoring API
+
+  version: 1.0.0
+
+servers:
+  - url: /
+    description: Base path through Kong Ingress
+
+paths:
+  /cd/api/logs:
+    get:
+      summary: Get vehicle event logs
+      tags:
+        - Central Director
+      responses:
+        '200':
+          description: Successful response with logs and pagination info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                        message:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      perPage:
+                        type: integer
+                      total:
+                        type: integer
+        '500':
+          description: Server error
+
+  /lt/api/vehicles/latest-locations:
+    get:
+      summary: Get latest vehicle locations
+      tags:
+        - Location Tracker
+      responses:
+        '200':
+          description: List of latest vehicle location data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    vehicleId:
+                      type: string
+                    latitude:
+                      type: number
+                      format: float
+                    longitude:
+                      type: number
+                      format: float
+                    timestamp:
+                      type: string
+                      format: date-time
+        '500':
+          description: Server error
+
+  /cd/api/vehicles:
+    get:
+      summary: Get all registered vehicles from Central Director
+      tags:
+        - Central Director
+      responses:
+        '200':
+          description: List of vehicle metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    vehicleId:
+                      type: string
+                    model:
+                      type: string
+                    status:
+                      type: string
+                      enum: [active, inactive, maintenance]
+        '500':
+          description: Server error
+
+  /dm/api/vehicles:
+    get:
+      summary: Get vehicle data from Distance Monitor
+      tags:
+        - Distance Monitor
+      responses:
+        '200':
+          description: List of vehicles monitored for distance metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    vehicleId:
+                      type: string
+                    odometer:
+                      type: number
+                      format: float
+                    distanceToday:
+                      type: number
+                      format: float
+        '500':
+          description: Server error
+
+tags:
+  - name: Central Director
+    description: Endpoints provided by the Central Director service (`/cd`)
+  - name: Location Tracker
+    description: Endpoints provided by the Location Tracker service (`/lt`)
+  - name: Distance Monitor
+    description: Endpoints provided by the Distance Monitor service (`/dm`)
