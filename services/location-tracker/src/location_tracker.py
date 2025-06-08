@@ -224,8 +224,8 @@ def get_vehicle_location(vehicle_id):
         # Calculate delta if we have a previous position
         if len(results) > 1:
             previous = results[1]
-            lat_delta = round(current["latitude"] - previous["latitude"], 6)
-            lng_delta = round(current["longitude"] - previous["longitude"], 6)
+            lat_delta = round(current["latitude"] - previous["latitude"], 10)
+            lng_delta = round(current["longitude"] - previous["longitude"], 10)
 
             response["position_delta"] = {
                 "latitude": lat_delta, "longitude": lng_delta}
@@ -277,9 +277,9 @@ def get_latest_locations():
                 if len(results) > 1:
                     previous = results[1]
                     lat_delta = round(
-                        current["latitude"] - previous["latitude"], 6)
+                        current["latitude"] - previous["latitude"], 10)
                     lng_delta = round(
-                        current["longitude"] - previous["longitude"], 6)
+                        current["longitude"] - previous["longitude"], 10)
 
                     location["position_delta"] = {
                         "latitude": lat_delta,

@@ -295,7 +295,7 @@ def evaluate_rules(dm_data):
     if lt_distance is not None:
         deviation = abs(lt_distance - distance)
         if deviation > 20:
-            save_event("distance_deviation",
+            save_event("central_director",
                        f"Vehicle {vehicle_id}: LT={lt_distance:.1f}m, DM={distance}m, Δ={deviation:.1f}m")
             return True, f"Deviation: LT vs DM >20m ({deviation:.1f}m)"
 
@@ -327,9 +327,9 @@ def trigger_emergency_break(vehicle_id, reason):
             )
             logger.info(f"Published emergency brake for {vehicle_id}: {reason}")
             # Save event to database
-            save_event("emergency_break", f"Published brake for {vehicle_id}: {reason}")
+            save_event("central-director", f"Published brake for {vehicle_id}: {reason}")
     except Exception as e:
-        save_event("error", f"Failed to publish EB message: {e}")
+        save_event("central-director", f"Failed to publish EB message: {e}")
 
 
 def process_message(data):
@@ -380,7 +380,7 @@ def process_message(data):
         save_event(sender, f"[{vehicle}] {msg}")
     else:
         logger.warning(f"Received unknown message format: {data}")
-        save_event("unknown_message", json.dumps(data))
+        save_event("central-director", json.dumps(data))
 
 
 @app.route("/health", methods=["GET"])

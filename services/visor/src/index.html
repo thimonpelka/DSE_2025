@@ -287,9 +287,8 @@
                                                         <div>📍 ${longitude.toFixed(5)}</div>
                                                     </div>
                                                     <div>
-                                                        <div class="text-slate-400 text-xs mb-1">Speed & Direction</div>
-                                                        <div>⚡ ${(Math.random() * 60 + 20).toFixed(1)} km/h</div>
-                                                        <div>🧭 ${Math.floor(Math.random() * 360)}°</div>
+                                                        <div class="text-slate-400 text-xs mb-1">Speed</div>
+                                                        <div>⚡ ${vehicle.vehicle_id === 'vehicle-1' ? 25 : 70} km/h</div>
                                                     </div>
                                                 </div>
                                                 <div class="border-t border-slate-600 pt-2">
@@ -316,8 +315,6 @@
 
           updateStats() {
             this.stats.activeVehicles = this.vehicles.length;
-            this.stats.avgSpeed - 1; // (Math.random() * 30 + 35).toFixed(1);
-            this.stats.totalDistance - 1; // (Math.random() * 1000 + 5000).toFixed(0);
             this.stats.emergencyBrakes = this.vehicles.filter(
               (v) => v.emergency_brake,
             ).length;
@@ -486,12 +483,6 @@
                       <div>
                         <span x-text="vehicle.gps.longitude.toFixed(4)"></span>
                       </div>
-                    </div>
-                    <div>
-                      ⚡
-                      <span
-                        x-text="(Math.random() * 60 + 20).toFixed(1) + ' km/h'"
-                      ></span>
                     </div>
 
                     <!-- Sensor Data -->
