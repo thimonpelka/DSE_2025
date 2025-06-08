@@ -26,52 +26,46 @@ app = Flask(__name__)
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
-RABBITMQ_EVENT_QUEUE = "events";
+RABBITMQ_EVENT_QUEUE = "events"
 RABBITMQ_RECONNECT_DELAY = 5  # seconds between reconnection attempts
 VEHICLE_ID = os.environ.get("VEHICLE_ID", "unknown")
 INCOMING_QUEUE = "brake_commands"
 OUTGOING_QUEUE = "brake_status"
-# Define global connection variables
-connection = None
-channel = None
 
+# Thread-local storage for connections and channels
+thread_local = threading.local()
+connection_lock = threading.Lock()
 
-def connect_to_rabbitmq():
-    """Connect to RabbitMQ and return connection and channel"""
-    global connection, channel
-
-    try:
-        logger.info("Attempting to connect to RabbitMQ...")
-        print(f"Connecting to RabbitMQ at {RABBITMQ_HOST} with user {RABBITMQ_USER} and password {RABBITMQ_PASS}")
-        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-        connection = pika.BlockingConnection(
-            pika.ConnectionParameters(
-                host=RABBITMQ_HOST,
-                credentials=credentials,
-                heartbeat=600,
-                blocked_connection_timeout=300,
-            )
-        )
-        channel = connection.channel()
-        channel.queue_declare(queue=INCOMING_QUEUE, durable=True)
-        channel.queue_declare(queue=OUTGOING_QUEUE, durable=True)
-        channel.queue_declare(queue=RABBITMQ_EVENT_QUEUE, durable=True)
-        logger.info("Successfully connected to RabbitMQ")
-        return True
-    except Exception as e:
-        logger.error("Failed to connect to RabbitMQ: %s", str(e))
-        connection = None
-        channel = None
-        return False
+def get_thread_local_connection():
+    """Get or create a thread-local RabbitMQ connection and channel."""
+    if not hasattr(thread_local, "connection") or thread_local.connection is None or thread_local.connection.is_closed:
+        with connection_lock:
+            if not hasattr(thread_local, "connection") or thread_local.connection is None or thread_local.connection.is_closed:
+                try:
+                    logger.info(f"Thread {threading.current_thread().name}: Attempting to connect to RabbitMQ...")
+                    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+                    thread_local.connection = pika.BlockingConnection(
+                        pika.ConnectionParameters(
+                            host=RABBITMQ_HOST,
+                            credentials=credentials,
+                            heartbeat=600,
+                            blocked_connection_timeout=300,
+                        )
+                    )
+                    thread_local.channel = thread_local.connection.channel()
+                    thread_local.channel.queue_declare(queue=INCOMING_QUEUE, durable=True)
+                    thread_local.channel.queue_declare(queue=OUTGOING_QUEUE, durable=True)
+                    thread_local.channel.queue_declare(queue=RABBITMQ_EVENT_QUEUE, durable=True)
+                    logger.info(f"Thread {threading.current_thread().name}: Successfully connected to RabbitMQ")
+                except Exception as e:
+                    logger.error(f"Thread {threading.current_thread().name}: Failed to connect to RabbitMQ: {str(e)}")
+                    thread_local.connection = None
+                    thread_local.channel = None
+                    raise
+    return thread_local.connection, thread_local.channel
 
 def publish_event(event_msg):
     """Publish an event to the RabbitMQ event queue."""
-    if connection is None or not connection.is_open:
-        logger.warning("RabbitMQ connection not available, attempting to reconnect")
-        if not connect_to_rabbitmq():
-            logger.error("Failed to reconnect to RabbitMQ")
-            return
-
     msg = {
         "vehicle_id": VEHICLE_ID,
         "log_message": f"'{event_msg}' in {VEHICLE_ID}",
@@ -80,6 +74,7 @@ def publish_event(event_msg):
     }
 
     try:
+        _, channel = get_thread_local_connection()
         channel.basic_publish(
             exchange="", routing_key=RABBITMQ_EVENT_QUEUE, body=json.dumps(msg)
         )
@@ -87,41 +82,32 @@ def publish_event(event_msg):
     except Exception as e:
         logger.error(f"Failed to publish event: {e}", exc_info=True)
 
-# Publish brake status
 def publish_brake_success(vehicle_id):
+    """Publish brake status to the outgoing queue."""
     msg = {
         "vehicle_id": vehicle_id,
         "status": "brake_applied",
         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
     }
 
-    rabbitmq_connected = False
-    if connection is None or not connection.is_open:
-        logger.warning("RabbitMQ connection not available, attempting to reconnect")
-        rabbitmq_connected = connect_to_rabbitmq()
-    else:
-        rabbitmq_connected = True
-
-    # If we have a connection, publish the message
-    if rabbitmq_connected:
+    try:
+        _, channel = get_thread_local_connection()
         channel.basic_publish(
             exchange="", routing_key=OUTGOING_QUEUE, body=json.dumps(msg)
         )
         logger.info(f"📤 Sent brake success for {vehicle_id} to queue.")
-    else:
-        logger.error("Failed to send message - RabbitMQ connection unavailable")
+    except Exception as e:
+        logger.error(f"Failed to send brake status: {e}", exc_info=True)
 
-
-# Process brake command from queue
 def process_brake_command(vehicle_id):
+    """Process a brake command."""
     publish_event("Processing valid brake command")
     logger.warning(f"🚨 BRAKE COMMAND RECEIVED for {vehicle_id}")
     send_brake_signal_to_datamock(vehicle_id)
     publish_brake_success(vehicle_id)
 
-
-# RabbitMQ consumer thread
 def brake_command_listener():
+    """RabbitMQ consumer thread for brake commands."""
     def callback(ch, method, properties, body):
         try:
             publish_event("Received brake command")
@@ -133,17 +119,21 @@ def brake_command_listener():
                         f"Received brake command for {vehicle_id_msg}, but this service is for {VEHICLE_ID}. Ignoring."
                     )
                     return
-                
                 process_brake_command(vehicle_id_msg)
         except Exception as e:
             logger.error(f"Error processing brake command: {e}", exc_info=True)
 
-    channel.basic_consume(
-        queue=INCOMING_QUEUE, on_message_callback=callback, auto_ack=True
-    )
-    logger.info("📡 Listening for brake commands on RabbitMQ...")
-    channel.start_consuming()
-
+    try:
+        _, channel = get_thread_local_connection()
+        channel.basic_consume(
+            queue=INCOMING_QUEUE, on_message_callback=callback, auto_ack=True
+        )
+        logger.info("📡 Listening for brake commands on RabbitMQ...")
+        channel.start_consuming()
+    except Exception as e:
+        logger.error(f"Consumer thread failed: {e}", exc_info=True)
+        time.sleep(RABBITMQ_RECONNECT_DELAY)
+        brake_command_listener()  # Retry on failure
 
 def send_brake_signal_to_datamock(vehicle_id):
     """Send a brake signal to the datamock service."""
@@ -163,10 +153,9 @@ def send_brake_signal_to_datamock(vehicle_id):
     except requests.exceptions.RequestException as e:
         logger.warning(f"Error sending brake signal to {endpoint}: {e}")
 
-
-# Flask route to receive processed sensor data
 @app.route("/processed-data", methods=["POST"])
 def receive_processed_data():
+    """Flask route to receive processed sensor data."""
     try:
         data = request.get_json()
         vehicle_id = data.get("vehicle_id", VEHICLE_ID)
@@ -211,19 +200,8 @@ def receive_processed_data():
         logger.error(f"Error in emergency brake evaluation: {e}", exc_info=True)
         return jsonify({"error": "Internal server error"}), 500
 
-
-# Start everything
 if __name__ == "__main__":
-    connect_attempt = False
-    while not connect_attempt:
-        connect_attempt = connect_to_rabbitmq()
-        if not connect_attempt:
-            logger.warning(
-                "Initial connection to RabbitMQ failed. Will retry in 5 seconds."
-            )
-            time.sleep(RABBITMQ_RECONNECT_DELAY)
-
+    # Start consumer thread
     threading.Thread(target=brake_command_listener, daemon=True).start()
-
     logger.info("🚘 Emergency Brake Service running on http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)
