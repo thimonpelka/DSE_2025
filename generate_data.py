@@ -19,7 +19,7 @@ SAMPLE_ROUTE = [
 
 # Simulation parameters
 TIME_STEP = 0.1  # 100ms
-SIMULATION_DURATION = 300  # 5 minutes
+SIMULATION_DURATION = 120  # 2 minutes
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -42,12 +42,12 @@ def get_vehicle_config(vehicle_id):
     """Get vehicle configuration based on ID"""
     if "vehicle-1" in vehicle_id.lower() or vehicle_id.endswith("-1"):
         return {
-            "speed_kmh": 30.0,
+            "speed_kmh": 25.0,
             "start_waypoint": 2,  # Start 2 waypoints ahead
         }
     else:
         return {
-            "speed_kmh": 50.0,
+            "speed_kmh": 70.0,
             "start_waypoint": 0,  # Start at beginning
         }
 

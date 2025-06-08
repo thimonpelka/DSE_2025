@@ -284,12 +284,12 @@ def evaluate_rules(dm_data):
     # Validate inputs
     if distance is None or delta is None:
         return False, ""
-    # Rule 1: distance < 20m and delta > 3 m/s
-    if distance < 20 and delta > 3:
-        return True, "DM: <20m & Δ>3m/s"
-    # Rule 2: distance < 40m and delta > 5 m/s
-    if distance < 40 and delta > 5:
-        return True, "DM: <40m & Δ>5m/s"
+    # Rule 1: distance < 20m and delta < -3 m/s
+    if distance < 20 and delta < -3:
+        return True, "DM: <20m & Δ<-3m/s"
+    # Rule 2: distance < 40m and delta < -5 m/s
+    if distance < 40 and delta < -5:
+        return True, "DM: <40m & Δ<-5m/s"
     # Rule 3: deviation >20 m between LT and DM (requires LT data to be implemented)
     lt_distance = get_lt_distance(vehicle_id)
     if lt_distance is not None:
@@ -305,10 +305,14 @@ def evaluate_rules(dm_data):
 def trigger_emergency_break(vehicle_id, reason):
     try:
         global connection, channel
+        if connection is None or not connection.is_open:
+            logger.warning(
+                "RabbitMQ connection not available, attempting to reconnect")
+            init_rabbitmq()
         if channel is not None:
             # Construct and publish the brake message
             msg = {
-                "command": "break",
+                "command": "brake",
                 "vehicle_id": vehicle_id,
                 "reason": reason,
                 "timestamp": datetime.utcnow().isoformat(),
@@ -343,7 +347,6 @@ def process_message(data):
         delta = (data.get("front_velocity_mps", 0) or 0) - (
                 data.get("rear_velocity_mps", 0) or 0
         )
-        save_event("distance_monitor", f"{vehicle} distance={distance}, Δ={delta}")
         if vehicle:
             if vehicle not in vehicle_details:
                 vehicle_details[vehicle] = {'brake': False, 'front_distance': None, 'rear_distance': None,

@@ -198,33 +198,55 @@ class VehicleSimulator:
         self.vehicle_id = vehicle_id
         self.simulation_data = load_simulation_data(vehicle_id)
         self.current_data_index = 0
-        self.start_time = time.time()
-
+        
+        # Instead of using start_time, we'll calculate position based on absolute time
+        # This makes the simulation appear to run continuously regardless of when it starts
+        
         if not self.simulation_data:
             raise ValueError(f"Could not load simulation data for {vehicle_id}")
 
         self.data_points = self.simulation_data.get("data", [])
         self.simulation_info = self.simulation_data.get("simulation_info", {})
-
+        
+        # Calculate simulation duration (should be 2 minutes = 120,000 ms)
+        if self.data_points:
+            self.simulation_duration_ms = max(point["time_elapsed_ms"] for point in self.data_points)
+        else:
+            self.simulation_duration_ms = 120000  # Default to 2 minutes
+            
         logger.info(f"Initialized simulator for {vehicle_id} with {len(self.data_points)} data points")
+        logger.info(f"Simulation duration: {self.simulation_duration_ms}ms ({self.simulation_duration_ms/1000}s)")
+
+    def get_current_simulation_time_ms(self) -> int:
+        """Calculate where we should be in the simulation cycle based on current time"""
+        # Use current Unix timestamp in milliseconds
+        current_time_ms = int(time.time() * 1000)
+        
+        # Calculate position within the simulation cycle
+        # This makes it appear as if the simulation has been running continuously
+        simulation_position_ms = current_time_ms % self.simulation_duration_ms
+        
+        return simulation_position_ms
 
     def get_current_data_point(self) -> dict:
-        """Get current simulation data point based on elapsed time"""
+        """Get current simulation data point based on continuous simulation time"""
         if not self.data_points:
             return None
 
-        elapsed_ms = int((time.time() - self.start_time) * 1000)
-
-        # Find the appropriate data point based on elapsed time
+        # Get where we should be in the simulation cycle
+        simulation_time_ms = self.get_current_simulation_time_ms()
+        
+        # Find the appropriate data point based on simulation time
+        # Use binary search or linear search to find the right point
         for i, data_point in enumerate(self.data_points):
-            if data_point["time_elapsed_ms"] >= elapsed_ms:
+            if data_point["time_elapsed_ms"] >= simulation_time_ms:
                 self.current_data_index = i
                 return data_point
-
-        # If we've passed all data points, loop back to start
-        self.start_time = time.time()
-        self.current_data_index = 0
-        return self.data_points[0]
+        
+        # If we've passed all data points, return the last one
+        # This shouldn't happen if simulation_duration_ms is calculated correctly
+        self.current_data_index = len(self.data_points) - 1
+        return self.data_points[-1]
 
     def generate_realistic_sensor_data(self, sim_data_point: dict) -> dict:
         """Generate sensor data based on simulation data with realistic deviations"""
@@ -285,7 +307,7 @@ class VehicleSimulator:
     def generate_data(self) -> dict[str, typing.Any]:
         timestamp = datetime.utcnow().isoformat() + "Z"
 
-        # Get current simulation data point (no brake checking here anymore)
+        # Get current simulation data point based on continuous time
         sim_data_point = self.get_current_data_point()
         if not sim_data_point:
             logger.error("No simulation data available")
@@ -298,6 +320,10 @@ class VehicleSimulator:
 
         # Get realistic sensor data based on simulation distances
         sensor_data = self.generate_realistic_sensor_data(sim_data_point)
+
+        # Log current simulation position for debugging
+        current_sim_time = self.get_current_simulation_time_ms()
+        logger.debug(f"Simulation time: {current_sim_time}ms ({current_sim_time/1000:.1f}s into cycle)")
 
         return {
             "timestamp": timestamp,

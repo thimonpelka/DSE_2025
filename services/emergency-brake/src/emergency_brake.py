@@ -26,7 +26,7 @@ app = Flask(__name__)
 RABBITMQ_HOST = os.environ.get("RABBITMQ_HOST", "rabbitmq")
 RABBITMQ_USER = os.environ.get("RABBITMQ_USER", "guest")
 RABBITMQ_PASS = os.environ.get("RABBITMQ_PASS", "guest")
-RABBITMQ_EVENT_QUEUE = os.environ.get("RABBITMQ_EVENT_QUEUE", "events")
+RABBITMQ_EVENT_QUEUE = "events";
 RABBITMQ_RECONNECT_DELAY = 5  # seconds between reconnection attempts
 VEHICLE_ID = os.environ.get("VEHICLE_ID", "unknown")
 INCOMING_QUEUE = "brake_commands"
@@ -133,7 +133,8 @@ def brake_command_listener():
                         f"Received brake command for {vehicle_id_msg}, but this service is for {VEHICLE_ID}. Ignoring."
                     )
                     return
-                process_brake_command(vehicle_id)
+                
+                process_brake_command(vehicle_id_msg)
         except Exception as e:
             logger.error(f"Error processing brake command: {e}", exc_info=True)
 
