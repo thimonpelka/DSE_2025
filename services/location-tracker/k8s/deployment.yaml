@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: location-tracker
-        image: location-tracker-service:20250606-124211
+        image: location-tracker-service:20250608-193354
         ports:
         - containerPort: 5000
         env:

@@ -15,6 +15,6 @@ spec:
     spec:
       containers:
       - name: visor
-        image: visor-service:20250606-125205
+        image: visor-service:20250608-193354
         ports:
         - containerPort: 5000

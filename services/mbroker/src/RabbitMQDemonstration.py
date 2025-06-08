@@ -84,8 +84,7 @@ class RabbitMQHelper:
                 queue=queue, on_message_callback=callback, auto_ack=True
             )
 
-            print(f"Waiting for messages on queue {
-                  queue}. To exit press CTRL+C")
+            print(f"Waiting for messages on queue {queue}. To exit press CTRL+C")
             channel.start_consuming()
         except Exception as e:
             print(f"Error consuming messages: {e}")

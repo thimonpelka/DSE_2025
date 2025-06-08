@@ -161,80 +161,34 @@
 
           async fetchLocations() {
             try {
-              // TODO: Implement real API calls to fetch vehicle data
-
               // Fetch all vehicle data in parallel
-              // const [locationsResponse, sensorsResponse, emergenciesResponse] = await Promise.all([
-              //     fetch("/lt/api/vehicles/latest-locations"),
-              //     fetch("/cd/api/vehicles"),
-              //     fetch("/dm/api/vehicles")
-              // ]);
-              //
-              // const [locationsData, sensorsData, emergenciesData] = await Promise.all([
-              //     locationsResponse.json(),
-              //     sensorsResponse.json(),
-              //     emergenciesData.json()
-              // ]);
+              const [locationsResponse, detailsResponse] = await Promise.all([
+                  fetch("/lt/api/vehicles/latest-locations"),
+                  fetch("/cd/api/vehicles")
+              ]);
 
-              const locationsResponse = await fetch(
-                "/lt/api/vehicles/latest-locations",
-              );
-              const locationsDataTemp = await locationsResponse.json();
-
-              const locationsData = [...locationsDataTemp];
-
-              console.log("Locations Data after merge:", locationsData);
-
-              const sensorsData = [
-                {
-                  vehicle_id: "vehicle-1",
-                  front_distance: 5.2,
-                  rear_distance: 3.8,
-                  front_distance_change: -0.1,
-                  rear_distance_change: 0.2,
-                },
-                {
-                  vehicle_id: "vehicle-2",
-                  front_distance: 4.5,
-                  rear_distance: 3.0,
-                  front_distance_change: 0.0,
-                  rear_distance_change: -0.3,
-                },
-              ];
-
-              // Simulated emergency data
-              const emergenciesData = [
-                {
-                  vehicle_id: "vehicle-1",
-                  emergency_brake: true,
-                },
-                {
-                  vehicle_id: "vehicle-2",
-                  emergency_brake: false,
-                },
-              ];
+              const [locationsData, detailsData] = await Promise.all([
+                  locationsResponse.json(),
+                  detailsResponse.json()
+              ]);
 
               // Merge all data by vehicle_id
               this.vehicles = locationsData.map((vehicle) => {
-                const sensorData =
-                  sensorsData.find(
-                    (s) => s.vehicle_id === vehicle.vehicle_id,
-                  ) || {};
-                const emergencyData =
-                  emergenciesData.find(
+                const detailData =
+                  detailsData.find(
                     (e) => e.vehicle_id === vehicle.vehicle_id,
                   ) || {};
 
                 return {
                   ...vehicle,
                   sensors: {
-                    front_distance: sensorData.front_distance || 0,
-                    rear_distance: sensorData.rear_distance || 0,
+                    front_distance: detailData.front_distance || 0,
+                    rear_distance: detailData.rear_distance || 0,
                     front_distance_change:
-                      sensorData.front_distance_change || 0,
-                    rear_distance_change: sensorData.rear_distance_change || 0,
+                      detailData.front_distance_change || 0,
+                    rear_distance_change: detailData.rear_distance_change || 0,
                   },
-                  emergency_brake: emergencyData.emergency_brake || false,
+                  emergency_brake: detailData.brake || false,
                 };
               });
 
